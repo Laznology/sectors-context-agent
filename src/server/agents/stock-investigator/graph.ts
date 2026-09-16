@@ -1,54 +1,232 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
-import { StockInvestigatorState } from "./state.ts";
+import { randomUUID } from "node:crypto";
+import type { DeterministicSignals } from "../../analysis/signals.ts";
+import type { ToolContext, ToolDefinition } from "../../tools/index.ts";
+import {
+  BaselineContextSchema,
+  EvidenceItemSchema,
+  InvestigationPlanSchema,
+  InvestigationResultSchema,
+  ToolCallRecordSchema,
+  type BaselineContext,
+  type EvidenceItem,
+  type InvestigationPlan,
+  type InvestigationResult,
+  type PreviousInvestigation,
+  type ToolCallRecord,
+} from "./schemas.ts";
+import { StockInvestigatorState, type StockInvestigatorStateType } from "./state.ts";
 
-/**
- * Placeholder nodes.
- *
- * The graph shape is final: START -> collectBaseline -> calculateSignals ->
- * planInvestigation -> investigateEvidence -> synthesize -> END. The next task
- * replaces these bodies with Sectors-backed tools and AI Gateway model calls;
- * nothing here performs network or LLM calls yet.
- */
-const collectBaseline: typeof StockInvestigatorState.Node = async () => ({
-  status: "collecting_baseline",
-});
+export type BaselineCollection = {
+  readonly baseline: BaselineContext;
+  readonly evidence: readonly EvidenceItem[];
+  readonly toolCalls: readonly ToolCallRecord[];
+};
 
-const calculateSignals: typeof StockInvestigatorState.Node = async () => ({
-  status: "calculating_signals",
-});
+export type PlannerInput = {
+  readonly ticker: string;
+  readonly question?: string;
+  readonly baseline: BaselineContext;
+  readonly signals: DeterministicSignals;
+  readonly previousInvestigation: PreviousInvestigation | null;
+  readonly evidence: readonly EvidenceItem[];
+};
 
-const planInvestigation: typeof StockInvestigatorState.Node = async () => ({
-  status: "planning",
-});
+export type SynthesizerInput = PlannerInput & {
+  readonly plan: InvestigationPlan;
+};
 
-const investigateEvidence: typeof StockInvestigatorState.Node = async () => ({
-  status: "investigating",
-});
+export type StockInvestigatorDependencies = {
+  readonly collectBaseline: (
+    input: { readonly ticker: string; readonly question?: string },
+    context: ToolContext,
+  ) => Promise<BaselineCollection>;
+  readonly calculateSignals: (input: BaselineContext) => DeterministicSignals;
+  readonly planner: (input: PlannerInput) => Promise<InvestigationPlan>;
+  readonly tools: readonly ToolDefinition[];
+  readonly synthesizer: (input: SynthesizerInput) => Promise<InvestigationResult>;
+};
 
-const synthesize: typeof StockInvestigatorState.Node = async () => ({
-  status: "completed",
-});
+export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDependencies) {
+  const collectBaseline = async (state: StockInvestigatorStateType) => {
+    const collection = await dependencies.collectBaseline(
+      { ticker: state.ticker, question: state.question },
+      createToolContext(state),
+    );
+    return {
+      status: "collecting_baseline" as const,
+      baseline: BaselineContextSchema.parse(collection.baseline),
+      evidence: collection.evidence.map((item) => EvidenceItemSchema.parse(item)),
+      toolCalls: collection.toolCalls.map((item) => ToolCallRecordSchema.parse(item)),
+    };
+  };
 
-/**
- * Builds the stock investigation graph.
- *
- * Explicit nodes and controlled semantic tools only: no generic ReAct loop and
- * no model-driven HTTP requests. Persistence stays opt-in: pass a checkpointer
- * created by `src/server/agents/checkpointer.ts` to `compile()` when a caller
- * needs resumable runs.
- */
-export function buildStockInvestigatorGraph() {
+  const calculateSignals = async (state: StockInvestigatorStateType) => {
+    if (!state.baseline) throw new Error("Baseline data is required before signal calculation");
+    return {
+      status: "calculating_signals" as const,
+      signals: dependencies.calculateSignals(state.baseline),
+    };
+  };
+
+  const planInvestigation = async (state: StockInvestigatorStateType) => {
+    if (!state.baseline || !state.signals) {
+      throw new Error("Baseline and deterministic signals are required before planning");
+    }
+    const plan = await dependencies.planner({
+      ticker: state.ticker,
+      question: state.question,
+      baseline: state.baseline,
+      signals: state.signals,
+      previousInvestigation: state.previousInvestigation,
+      evidence: state.evidence,
+    });
+    return {
+      status: "planning" as const,
+      plan: InvestigationPlanSchema.parse(plan),
+    };
+  };
+
+  const investigateEvidence = async (state: StockInvestigatorStateType) => {
+    if (!state.plan) throw new Error("Investigation plan is required before evidence collection");
+    const toolsByName: Record<string, ToolDefinition> = Object.fromEntries(
+      dependencies.tools.map((tool) => [tool.name, tool]),
+    );
+    const evidence: EvidenceItem[] = [];
+    const toolCalls: ToolCallRecord[] = [];
+
+    for (const step of state.plan.steps) {
+      const startedAt = new Date();
+      const tool = toolsByName[step.tool];
+      if (!tool) {
+        toolCalls.push(
+          createToolCall({
+            step,
+            status: "failed",
+            startedAt,
+            errorCode: "TOOL_NOT_ALLOWED",
+            errorMessage: `Tool is not registered: ${step.tool}`,
+          }),
+        );
+        continue;
+      }
+
+      const input = step.input ?? {};
+      const parsedInput = tool.inputSchema.safeParse(input);
+      if (!parsedInput.success) {
+        toolCalls.push(
+          createToolCall({
+            step,
+            status: "failed",
+            startedAt,
+            input,
+            errorCode: "INVALID_TOOL_INPUT",
+            errorMessage: parsedInput.error.issues.map((issue) => issue.message).join("; "),
+          }),
+        );
+        continue;
+      }
+
+      try {
+        const execution = await tool.execute(parsedInput.data, createToolContext(state));
+        const executionEvidence = execution.evidence.map((item) => EvidenceItemSchema.parse(item));
+        evidence.push(...executionEvidence);
+        toolCalls.push(
+          createToolCall({
+            step,
+            status: "succeeded",
+            startedAt,
+            input,
+            output: execution.value,
+          }),
+        );
+      } catch (error) {
+        toolCalls.push(
+          createToolCall({
+            step,
+            status: "failed",
+            startedAt,
+            input,
+            errorCode: "TOOL_EXECUTION_FAILED",
+            errorMessage: errorMessage(error),
+          }),
+        );
+      }
+    }
+
+    return { status: "investigating" as const, evidence, toolCalls };
+  };
+
+  const synthesize = async (state: StockInvestigatorStateType) => {
+    if (!state.baseline || !state.signals || !state.plan) {
+      throw new Error("Investigation context is incomplete before synthesis");
+    }
+    const result = await dependencies.synthesizer({
+      ticker: state.ticker,
+      question: state.question,
+      baseline: state.baseline,
+      signals: state.signals,
+      previousInvestigation: state.previousInvestigation,
+      evidence: state.evidence,
+      plan: state.plan,
+    });
+    return {
+      status: "synthesizing" as const,
+      result: InvestigationResultSchema.parse(result),
+    };
+  };
+
+  const finalize = async (state: StockInvestigatorStateType) => {
+    if (!state.result) throw new Error("Synthesis did not produce an investigation result");
+    return { status: "completed" as const };
+  };
+
   return new StateGraph(StockInvestigatorState)
     .addNode("collectBaseline", collectBaseline)
     .addNode("calculateSignals", calculateSignals)
     .addNode("planInvestigation", planInvestigation)
     .addNode("investigateEvidence", investigateEvidence)
     .addNode("synthesize", synthesize)
+    .addNode("finalize", finalize)
     .addEdge(START, "collectBaseline")
     .addEdge("collectBaseline", "calculateSignals")
     .addEdge("calculateSignals", "planInvestigation")
     .addEdge("planInvestigation", "investigateEvidence")
     .addEdge("investigateEvidence", "synthesize")
-    .addEdge("synthesize", END)
+    .addEdge("synthesize", "finalize")
+    .addEdge("finalize", END)
     .compile();
+}
+
+function createToolContext(state: StockInvestigatorStateType): ToolContext {
+  return { ticker: state.ticker, investigationId: state.investigationId };
+}
+
+function createToolCall(input: {
+  readonly step: { id: string; intent: string; tool: string };
+  readonly status: ToolCallRecord["status"];
+  readonly startedAt: Date;
+  readonly input?: Record<string, unknown>;
+  readonly output?: unknown;
+  readonly errorCode?: string;
+  readonly errorMessage?: string;
+}): ToolCallRecord {
+  const finishedAt = new Date();
+  return ToolCallRecordSchema.parse({
+    id: randomUUID(),
+    toolName: input.step.tool,
+    status: input.status,
+    reason: input.step.intent,
+    input: input.input,
+    output: input.output,
+    errorCode: input.errorCode,
+    errorMessage: input.errorMessage,
+    durationMs: finishedAt.getTime() - input.startedAt.getTime(),
+    startedAt: input.startedAt.toISOString(),
+    finishedAt: finishedAt.toISOString(),
+  });
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
