@@ -1,0 +1,291 @@
+import { randomUUID } from "node:crypto";
+import { z } from "zod";
+import type { EvidenceItem } from "../agents/stock-investigator/schemas.ts";
+import { sectorsFetch } from "../sectors/client.ts";
+import { defineTool, type ToolExecutionResult } from "./contracts.ts";
+
+const DateRangeInputSchema = z.object({
+  start: z.iso.date().optional(),
+  end: z.iso.date().optional(),
+});
+
+type DateRangeInput = z.infer<typeof DateRangeInputSchema>;
+
+const DailyRecordSchema = z.looseObject({
+  date: z.string(),
+  close: z.number(),
+  volume: z.number(),
+});
+const DailyResponseSchema = z.array(DailyRecordSchema);
+
+const MarketRecordSchema = z.looseObject({
+  date: z.string(),
+  price: z.number(),
+});
+const MarketResponseSchema = z.array(MarketRecordSchema);
+
+const CompanyResponseSchema = z.looseObject({});
+
+const ForeignFlowResponseSchema = z.looseObject({
+  data: z.array(
+    z.looseObject({
+      date: z.string(),
+      net_foreign_inflow: z.number(),
+    }),
+  ),
+});
+
+const BrokerResponseSchema = z.looseObject({
+  top_buyers: z.array(z.unknown()).optional(),
+  top_sellers: z.array(z.unknown()).optional(),
+});
+
+const ResultsResponseSchema = z.looseObject({
+  results: z.array(z.unknown()).default([]),
+});
+
+export const getPriceContext = defineTool({
+  name: "get_price_context",
+  description: "Collect recent daily close and volume data for the investigated ticker.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (
+    input: DateRangeInput,
+    context,
+  ): Promise<ToolExecutionResult<{ records: z.infer<typeof DailyResponseSchema> }>> => {
+    const records = await sectorsFetch(`/daily/${context.ticker}/`, {
+      query: dateQuery(input),
+      signal: context.signal,
+      schema: DailyResponseSchema,
+    });
+    return {
+      value: { records },
+      evidence: [
+        createEvidence(
+          "price_volume",
+          `sectors:daily:${context.ticker}`,
+          `Collected ${records.length} daily price-volume observations for ${context.ticker}.`,
+          records,
+        ),
+      ],
+      asOfDate: latestDate(records),
+    };
+  },
+});
+
+export const getMarketContext = defineTool({
+  name: "get_market_context",
+  description: "Collect IHSG daily prices for benchmark comparison.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (
+    input: DateRangeInput,
+    context,
+  ): Promise<ToolExecutionResult<{ records: Array<{ date: string; close: number }> }>> => {
+    const rawRecords = await sectorsFetch("/index-daily/ihsg/", {
+      query: dateQuery(input),
+      signal: context.signal,
+      schema: MarketResponseSchema,
+    });
+    const records = rawRecords.map(({ date, price }) => ({ date, close: price }));
+    return {
+      value: { records },
+      evidence: [
+        createEvidence(
+          "market",
+          "sectors:index-daily:ihsg",
+          `Collected ${records.length} IHSG benchmark observations.`,
+          rawRecords,
+        ),
+      ],
+      asOfDate: latestDate(records),
+    };
+  },
+});
+
+export const getCompanyContext = defineTool({
+  name: "get_company_context",
+  description: "Collect the latest company overview and sector metadata.",
+  inputSchema: z.object({}),
+  execute: async (_input, context): Promise<ToolExecutionResult> => {
+    const report = await sectorsFetch(`/company/report/${context.ticker}/`, {
+      query: { sections: "overview" },
+      signal: context.signal,
+      schema: CompanyResponseSchema,
+    });
+    return {
+      value: report,
+      evidence: [
+        createEvidence(
+          "company",
+          `sectors:company-report:${context.ticker}`,
+          `Collected company overview metadata for ${context.ticker}.`,
+          report,
+        ),
+      ],
+    };
+  },
+});
+
+export const getSectorContext = defineTool({
+  name: "get_sector_context",
+  description: "Collect statistics and market-cap context for a company subsector.",
+  inputSchema: z.object({ sub_sector: z.string().trim().min(1) }),
+  execute: async ({ sub_sector }, context): Promise<ToolExecutionResult> => {
+    const report = await sectorsFetch(`/subsector/report/${encodeURIComponent(sub_sector)}/`, {
+      query: { sections: "statistics,market_cap" },
+      signal: context.signal,
+      schema: CompanyResponseSchema,
+    });
+    return {
+      value: report,
+      evidence: [
+        createEvidence(
+          "sector",
+          `sectors:subsector-report:${sub_sector}`,
+          `Collected subsector statistics for ${sub_sector}.`,
+          report,
+        ),
+      ],
+    };
+  },
+});
+
+export const getForeignFlow = defineTool({
+  name: "get_foreign_flow",
+  description: "Collect daily net foreign inflow for the investigated ticker.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+    const flow = await sectorsFetch(`/foreign-flow/${context.ticker}/`, {
+      query: dateQuery(input),
+      signal: context.signal,
+      schema: ForeignFlowResponseSchema,
+    });
+    return {
+      value: flow,
+      evidence: [
+        createEvidence(
+          "foreign_flow",
+          `sectors:foreign-flow:${context.ticker}`,
+          `Collected ${flow.data.length} foreign-flow observations for ${context.ticker}.`,
+          flow,
+        ),
+      ],
+      asOfDate: latestDate(flow.data),
+    };
+  },
+});
+
+export const getBrokerActivity = defineTool({
+  name: "get_broker_activity",
+  description: "Collect top broker buyers and sellers for the investigated ticker.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+    const activity = await sectorsFetch(`/broker-summary/${context.ticker}/top/`, {
+      query: { ...dateQuery(input), origin: "local", cohort: "all", n_brokers: 5 },
+      signal: context.signal,
+      schema: BrokerResponseSchema,
+    });
+    return {
+      value: activity,
+      evidence: [
+        createEvidence(
+          "broker",
+          `sectors:broker-summary:${context.ticker}`,
+          `Collected broker activity for ${context.ticker}.`,
+          activity,
+        ),
+      ],
+    };
+  },
+});
+
+export const getCompanyNews = defineTool({
+  name: "get_company_news",
+  description: "Collect recent company news items for the investigated ticker.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+    const news = await sectorsFetch("/news/", {
+      query: {
+        extension: "idx",
+        symbols: context.ticker,
+        ...dateQuery(input),
+        limit: 5,
+        offset: 0,
+      },
+      signal: context.signal,
+      schema: ResultsResponseSchema,
+    });
+    return {
+      value: news,
+      evidence: [
+        createEvidence(
+          "news",
+          `sectors:news:${context.ticker}`,
+          `Collected ${news.results.length} recent news items for ${context.ticker}.`,
+          news,
+        ),
+      ],
+    };
+  },
+});
+
+export const getCompanyFilings = defineTool({
+  name: "get_company_filings",
+  description: "Collect recent company filing items for the investigated ticker.",
+  inputSchema: DateRangeInputSchema,
+  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+    const filings = await sectorsFetch("/filings/", {
+      query: { symbol: context.ticker, ...dateQuery(input), limit: 5, offset: 0 },
+      signal: context.signal,
+      schema: ResultsResponseSchema,
+    });
+    return {
+      value: filings,
+      evidence: [
+        createEvidence(
+          "filing",
+          `sectors:filings:${context.ticker}`,
+          `Collected ${filings.results.length} recent filing items for ${context.ticker}.`,
+          filings,
+        ),
+      ],
+    };
+  },
+});
+
+export const sectorsInvestigationTools = [
+  getPriceContext,
+  getMarketContext,
+  getCompanyContext,
+  getSectorContext,
+  getForeignFlow,
+  getBrokerActivity,
+  getCompanyNews,
+  getCompanyFilings,
+] as const;
+
+function dateQuery(input: DateRangeInput): Record<string, string | undefined> {
+  return { start: input.start, end: input.end };
+}
+
+function latestDate(records: readonly { date: string }[]): string | undefined {
+  return records.reduce<string | undefined>(
+    (latest, record) => (latest === undefined || record.date > latest ? record.date : latest),
+    undefined,
+  );
+}
+
+function createEvidence(
+  type: EvidenceItem["type"],
+  source: string,
+  summary: string,
+  payload: unknown,
+): EvidenceItem {
+  return {
+    id: randomUUID(),
+    type,
+    source,
+    summary,
+    payload,
+    collectedAt: new Date().toISOString(),
+  };
+}
