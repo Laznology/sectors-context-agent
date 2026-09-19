@@ -4,7 +4,10 @@ import * as schema from "./schema.ts";
 
 export type Database = PostgresJsDatabase<typeof schema>;
 
+type DatabaseClient = postgres.Sql;
+
 let database: Database | undefined;
+let databaseClient: DatabaseClient | undefined;
 
 /**
  * Lazily creates the Drizzle client so that importing this module never
@@ -18,8 +21,16 @@ export function getDb(): Database {
     throw new Error("DATABASE_URL is not set. Copy .env.example to .env and configure it.");
   }
 
-  database = drizzle(postgres(connectionString), { schema });
+  databaseClient = postgres(connectionString);
+  database = drizzle(databaseClient, { schema });
   return database;
+}
+
+export async function closeDb(): Promise<void> {
+  if (!databaseClient) return;
+  await databaseClient.end({ timeout: 5 });
+  database = undefined;
+  databaseClient = undefined;
 }
 
 export { schema };
