@@ -1,13 +1,17 @@
 import react from "@vitejs/plugin-react";
-import { defineConfig, lazyPlugins } from "vite-plus";
+import { configDefaults, defineConfig, lazyPlugins } from "vite-plus";
 
 // https://vite.dev/config/
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: {},
+  fmt: {
+    // Freebuff session worktrees and Vite+ caches live inside the repo and are not project sources.
+    ignorePatterns: [".freebuff/**", ".vite-doctor/**"],
+  },
   lint: {
+    ignorePatterns: [".freebuff/**", ".vite-doctor/**"],
     plugins: ["react", "typescript", "oxc"],
     rules: {
       "react/rules-of-hooks": "error",
@@ -31,6 +35,9 @@ export default defineConfig({
     ],
   },
   plugins: lazyPlugins(() => [react()]),
+  test: {
+    exclude: [...configDefaults.exclude, "**/.freebuff/**"],
+  },
   server: {
     proxy: {
       "/api": {
