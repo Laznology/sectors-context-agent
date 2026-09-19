@@ -33,3 +33,6 @@ dist-ssr
 
 # Local docker overrides (machine-specific workarounds)
 docker-compose.override.yml
+
+# Local agent run state (drafts, plans, evidence, session logs)
+.omo/
