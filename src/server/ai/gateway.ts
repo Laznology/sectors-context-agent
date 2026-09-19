@@ -1,13 +1,23 @@
-import { gateway } from "@ai-sdk/gateway";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { plannerModelId, synthesizerModelId } from "./models.ts";
 
-/**
- * Server-only Vercel AI Gateway handles.
- *
- * The AI SDK is used for model interaction only; LangGraph owns orchestration,
- * and models are never called from React components. Credentials come from
- * `AI_GATEWAY_API_KEY` via the Gateway provider.
- */
-export const plannerModel = gateway(plannerModelId);
+const provider = createOpenAICompatible({
+  name: "ai-gateway",
+  baseURL: requiredEnvironment("AI_GATEWAY_URL"),
+  apiKey: requiredEnvironment("AI_GATEWAY_API_KEY"),
+  supportsStructuredOutputs: true,
+  // The OmniRoute gateway streams whenever `stream` is absent, which breaks the
+  // non-streaming JSON path. Send an explicit value: false for generate calls,
+  // while streaming calls keep their own `stream: true`.
+  transformRequestBody: (args) => ({ stream: false, ...args }),
+});
 
-export const synthesizerModel = gateway(synthesizerModelId);
+export const plannerModel = provider(plannerModelId);
+
+export const synthesizerModel = provider(synthesizerModelId);
+
+function requiredEnvironment(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is not set`);
+  return value;
+}
