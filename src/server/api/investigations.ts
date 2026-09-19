@@ -1,7 +1,14 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { streamSSE } from "hono/streaming";
 import { randomUUID } from "node:crypto";
-import { InvestigationRequestSchema } from "../../shared/schemas/investigation.ts";
+import {
+  ConversationRequestSchema,
+  InvestigationRequestSchema,
+} from "../../shared/schemas/investigation.ts";
+import type {
+  InvestigationConversationInput,
+  InvestigationConversationResult,
+} from "../agents/stock-investigator/conversation.ts";
 import type {
   InvestigationEvent,
   InvestigationEventEmitter,
@@ -14,6 +21,9 @@ export type InvestigationRouteEnv = {};
 export type InvestigationRouteDependencies = {
   readonly store: InvestigationStore;
   readonly manager: InvestigationRunManager;
+  readonly conversation: (
+    input: InvestigationConversationInput,
+  ) => Promise<InvestigationConversationResult>;
   readonly authMiddleware: MiddlewareHandler;
   readonly resolveUserId: (context: Context) => string;
 };
@@ -22,6 +32,11 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
   const routes = new Hono();
 
   routes.use("*", dependencies.authMiddleware);
+
+  routes.get("/", async (context) => {
+    const investigations = await dependencies.store.list(dependencies.resolveUserId(context));
+    return context.json({ investigations });
+  });
 
   routes.post("/", async (context) => {
     const body = await readJson(context);
@@ -49,6 +64,38 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
       previousInvestigation,
     });
     return context.json({ id: created.id, status: "pending" }, 202);
+  });
+
+  routes.post("/:id/chat", async (context) => {
+    const body = await readJson(context);
+    const parsed = ConversationRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return context.json(
+        { error: "Invalid conversation request", details: parsed.error.flatten() },
+        400,
+      );
+    }
+
+    const investigation = await dependencies.store.getDetail(
+      dependencies.resolveUserId(context),
+      context.req.param("id"),
+    );
+    if (!investigation) return context.json({ error: "Investigation not found" }, 404);
+    if (investigation.status !== "completed") {
+      return context.json({ error: "Investigation is not complete" }, 409);
+    }
+
+    try {
+      const result = await dependencies.conversation({
+        investigation,
+        message: parsed.data.message,
+        signal: context.req.raw.signal,
+      });
+      return context.json(result);
+    } catch (error) {
+      if (context.req.raw.signal.aborted) return new Response(null, { status: 499 });
+      return context.json({ error: "Conversation failed", message: errorMessage(error) }, 502);
+    }
   });
 
   routes.get("/:id/events", async (context) => {
@@ -178,7 +225,7 @@ function isTerminalEvent(event: InvestigationEvent): boolean {
   return event.type === "completed" || event.type === "error";
 }
 
-async function readJson(context: Context): Promise<unknown> {
+export async function readJson(context: Context): Promise<unknown> {
   try {
     return await context.req.json();
   } catch {

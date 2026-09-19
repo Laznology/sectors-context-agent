@@ -12,9 +12,11 @@ describe("investigation API", () => {
       create: vi.fn().mockResolvedValue({ id: "inv-1" }),
       findPrevious: vi.fn().mockResolvedValue(null),
       getDetail: vi.fn().mockResolvedValue({ id: "inv-1", status: "pending" }),
+      list: vi.fn().mockResolvedValue([]),
       updateFromState: vi.fn(),
       appendEvidence: vi.fn(),
       appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
       complete: vi.fn(),
       fail: vi.fn(),
     };
@@ -27,6 +29,7 @@ describe("investigation API", () => {
     const app = createInvestigationRoutes({
       store,
       manager,
+      conversation: vi.fn(),
       authMiddleware: allowRequest,
       resolveUserId: () => "user-1",
     });
@@ -49,21 +52,118 @@ describe("investigation API", () => {
     expect(body).toContain("event: completed");
   });
 
-  it("rejects malformed ticker before creating an investigation", async () => {
-    const create = vi.fn();
+  it("runs a scoped follow-up conversation for a completed investigation", async () => {
+    const conversation = vi.fn().mockResolvedValue({
+      message: {
+        id: "message-1",
+        role: "assistant",
+        content: "Foreign flow remains relevant.",
+        createdAt: "2026-09-17T00:00:00.000Z",
+      },
+      toolCalls: [],
+    });
     const store: InvestigationStore = {
-      create,
+      create: vi.fn(),
       findPrevious: vi.fn(),
-      getDetail: vi.fn(),
+      getDetail: vi.fn().mockResolvedValue({
+        id: "inv-3",
+        ticker: "ANTM",
+        status: "completed",
+        conversations: [],
+        evidence: [],
+        toolCalls: [],
+      }),
+      list: vi.fn(),
       updateFromState: vi.fn(),
       appendEvidence: vi.fn(),
       appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
       complete: vi.fn(),
       fail: vi.fn(),
     };
     const app = createInvestigationRoutes({
       store,
       manager: new InvestigationRunManager(async () => undefined),
+      conversation,
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+    });
+
+    const response = await app.request("http://localhost/inv-3/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Apakah foreign flow berlanjut?" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      message: { role: "assistant", content: "Foreign flow remains relevant." },
+    });
+    expect(conversation).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Apakah foreign flow berlanjut?" }),
+    );
+  });
+
+  it("lists investigations for the authenticated user", async () => {
+    const list = vi.fn().mockResolvedValue([
+      {
+        id: "inv-2",
+        ticker: "ANTM",
+        status: "completed",
+        classification: "bullish",
+        driver: "FLOW_DRIVEN",
+        confidence: 0.7,
+        createdAt: "2026-09-19T00:00:00.000Z",
+        completedAt: "2026-09-19T00:05:00.000Z",
+      },
+    ]);
+    const store: InvestigationStore = {
+      create: vi.fn(),
+      findPrevious: vi.fn(),
+      getDetail: vi.fn(),
+      list,
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation: vi.fn(),
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+    });
+
+    const response = await app.request("http://localhost/");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      investigations: [{ id: "inv-2", ticker: "ANTM", status: "completed" }],
+    });
+    expect(list).toHaveBeenCalledWith("user-1");
+  });
+
+  it("rejects malformed ticker before creating an investigation", async () => {
+    const create = vi.fn();
+    const store: InvestigationStore = {
+      create,
+      findPrevious: vi.fn(),
+      getDetail: vi.fn(),
+      list: vi.fn(),
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation: vi.fn(),
       authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
       resolveUserId: () => "user-1",
     });

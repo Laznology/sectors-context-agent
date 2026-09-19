@@ -84,4 +84,11 @@ export const InvestigationRequestSchema = z.object({
   question: z.string().trim().min(1).optional(),
 });
 
+/** Request body for a ticker-scoped follow-up conversation. */
+export const ConversationRequestSchema = z.object({
+  message: z.string().trim().min(1).max(4_000),
+});
+
+export type ConversationRequest = z.infer<typeof ConversationRequestSchema>;
+
 export type InvestigationRequest = z.infer<typeof InvestigationRequestSchema>;

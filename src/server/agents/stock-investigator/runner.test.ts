@@ -13,9 +13,11 @@ describe("runStockInvestigation", () => {
       create: vi.fn(),
       findPrevious: vi.fn(),
       getDetail: vi.fn(),
+      list: vi.fn(),
       updateFromState,
       appendEvidence: vi.fn(),
       appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
       complete,
       fail,
     };
@@ -82,9 +84,11 @@ describe("runStockInvestigation", () => {
       create: vi.fn(),
       findPrevious: vi.fn(),
       getDetail: vi.fn(),
+      list: vi.fn(),
       updateFromState: vi.fn(),
       appendEvidence: vi.fn(),
       appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
       complete,
       fail,
     };
