@@ -48,6 +48,18 @@ export type InvestigationDetail = {
   readonly conversations?: readonly ConversationRecord[];
 };
 
+/** Lightweight investigation row for dashboard and history lists. */
+export type InvestigationSummary = {
+  readonly id: string;
+  readonly ticker: string;
+  readonly status: InvestigationStatus;
+  readonly classification?: InvestigationClassification | null;
+  readonly driver?: InvestigationDriver | null;
+  readonly confidence?: number | null;
+  readonly createdAt: string;
+  readonly completedAt?: string | null;
+};
+
 export type ConversationRecord = {
   readonly id: string;
   readonly role: "user" | "assistant";
@@ -73,10 +85,16 @@ export type InvestigationCompletion = {
 export interface InvestigationStore {
   create(input: InvestigationCreateInput): Promise<{ id: string }>;
   findPrevious(userId: string, ticker: string): Promise<PreviousInvestigation | null>;
+  list(userId: string): Promise<InvestigationSummary[]>;
   getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null>;
   updateFromState(investigationId: string, patch: InvestigationStatePatch): Promise<void>;
   appendEvidence(investigationId: string, items: readonly EvidenceItem[]): Promise<void>;
   appendToolCalls(investigationId: string, records: readonly ToolCallRecord[]): Promise<void>;
+  appendConversation(
+    investigationId: string,
+    role: ConversationRecord["role"],
+    content: string,
+  ): Promise<ConversationRecord>;
   complete(investigationId: string, completion: InvestigationCompletion): Promise<void>;
   fail(investigationId: string, errorMessage: string): Promise<void>;
 }
@@ -142,6 +160,34 @@ export class PostgresInvestigationStore implements InvestigationStore {
       explanation: row.explanation,
       whatToMonitor: row.whatToMonitor,
     };
+  }
+
+  async list(userId: string): Promise<InvestigationSummary[]> {
+    const rows = await this.db
+      .select({
+        id: investigations.id,
+        ticker: investigations.ticker,
+        status: investigations.status,
+        classification: investigations.classification,
+        driver: investigations.driver,
+        confidence: investigations.confidence,
+        createdAt: investigations.createdAt,
+        completedAt: investigations.completedAt,
+      })
+      .from(investigations)
+      .where(eq(investigations.userId, userId))
+      .orderBy(desc(investigations.createdAt));
+
+    return rows.map((row) => ({
+      id: row.id,
+      ticker: row.ticker,
+      status: row.status,
+      classification: row.classification ?? null,
+      driver: row.driver ?? null,
+      confidence: row.confidence ?? null,
+      createdAt: row.createdAt.toISOString(),
+      completedAt: row.completedAt?.toISOString() ?? null,
+    }));
   }
 
   async getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null> {
@@ -263,6 +309,24 @@ export class PostgresInvestigationStore implements InvestigationStore {
         finishedAt: record.finishedAt ? new Date(record.finishedAt) : undefined,
       })),
     );
+  }
+
+  async appendConversation(
+    investigationId: string,
+    role: ConversationRecord["role"],
+    content: string,
+  ): Promise<ConversationRecord> {
+    const [row] = await this.db
+      .insert(conversations)
+      .values({ investigationId, role, content })
+      .returning();
+    if (!row) throw new Error("Failed to persist conversation message");
+    return {
+      id: row.id,
+      role: row.role,
+      content: row.content,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   async complete(investigationId: string, completion: InvestigationCompletion): Promise<void> {
