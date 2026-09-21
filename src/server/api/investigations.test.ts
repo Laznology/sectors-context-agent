@@ -21,8 +21,18 @@ describe("investigation API", () => {
       fail: vi.fn(),
     };
     const manager = new InvestigationRunManager(async (_input, emit) => {
-      emit({ type: "step", step: "collectBaseline", status: "collecting_baseline" });
-      emit({ type: "step", step: "synthesize", status: "completed" });
+      emit({
+        type: "step",
+        step: "collectBaseline",
+        status: "collecting_baseline",
+        label: "Collecting price, market, and company context",
+      });
+      emit({
+        type: "step",
+        step: "synthesize",
+        status: "completed",
+        label: "Synthesizing the evidence-backed explanation",
+      });
       emit({ type: "completed", result: { driver: "UNCLEAR" } });
     });
     const allowRequest: MiddlewareHandler = async (_context, next) => next();

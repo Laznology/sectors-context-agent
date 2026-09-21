@@ -74,6 +74,7 @@ describe("runStockInvestigation", () => {
       "started",
       "step",
       "step",
+      "plan",
       "step",
       "step",
       "step",
@@ -88,6 +89,13 @@ describe("runStockInvestigation", () => {
       "synthesize",
       "finalize",
     ]);
+    expect(
+      events.filter((event) => event.type === "step").every((event) => event.label.length > 0),
+    ).toBe(true);
+    expect(events.find((event) => event.type === "plan")).toMatchObject({
+      branch: "full",
+      hypotheses: [],
+    });
     expect(updateFromState).toHaveBeenCalledTimes(6);
     expect(complete).toHaveBeenCalledOnce();
     expect(fail).not.toHaveBeenCalled();

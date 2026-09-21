@@ -9,6 +9,16 @@ import {
   type InvestigationResult,
 } from "./schemas.ts";
 
+/**
+ * Model retries for the structured-output calls.
+ *
+ * A malformed JSON response used to fail the whole investigation after every
+ * Sectors credit was already spent, and it happened intermittently with a
+ * healthy gateway. Two retries cover a bad completion; the prompt is unchanged
+ * so a retry is not a different request, just another sample.
+ */
+const MODEL_MAX_RETRIES = Number(process.env.MODEL_MAX_RETRIES ?? 2);
+
 export async function planWithModel(
   input: PlannerInput,
   tools: readonly { name: string; description: string }[],
@@ -16,6 +26,7 @@ export async function planWithModel(
   const { object } = await generateObject({
     model: plannerModel,
     schema: InvestigationPlanSchema,
+    maxRetries: MODEL_MAX_RETRIES,
     prompt: [
       "You are the planning stage of an auditable Indonesian stock investigation.",
       "Choose only from the approved tools listed below.",
@@ -44,6 +55,7 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
   const { object } = await generateObject({
     model: synthesizerModel,
     schema: InvestigationResultSchema,
+    maxRetries: MODEL_MAX_RETRIES,
     prompt: [
       "You are the synthesis stage of an auditable Indonesian stock investigation.",
       "Explain observations from supplied data only; never invent missing facts.",

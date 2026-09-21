@@ -180,11 +180,21 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     }
 
     return streamSSE(context, async (stream) => {
+      let closed = false;
+      context.req.raw.signal.addEventListener("abort", () => {
+        closed = true;
+      });
+
+      const heartbeat = setInterval(() => {
+        if (!closed) void stream.writeSSE({ event: "heartbeat", data: "{}" });
+      }, 15_000);
+
       try {
         for await (const event of dependencies.manager.subscribe(
           investigation.id,
           context.req.raw.signal,
         )) {
+          if (closed) break;
           await stream.writeSSE({
             event: event.type,
             id: event.id,
@@ -199,6 +209,8 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
             data: JSON.stringify({ type: "error", message: errorMessage(error) }),
           });
         }
+      } finally {
+        clearInterval(heartbeat);
       }
     });
   });

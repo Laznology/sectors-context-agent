@@ -48,6 +48,33 @@ export type InvestigationEvent =
       readonly type: "step";
       readonly step: string;
       readonly status: InvestigationStatus;
+      /** Human-readable progress line, ready for the UI to render as-is. */
+      readonly label: string;
+    }
+  | {
+      readonly id?: string;
+      readonly type: "plan";
+      /** Drivers the planner is testing, in the PRD §15 vocabulary. */
+      readonly hypotheses: readonly string[];
+      readonly steps: readonly {
+        readonly tool: string;
+        readonly intent: string;
+        readonly input?: Record<string, unknown>;
+      }[];
+      /** Why the deterministic signals allowed this depth. */
+      readonly branch: string;
+      readonly rationale: string;
+    }
+  | {
+      readonly id?: string;
+      readonly type: "evidence";
+      /** Compact evidence for a card; the raw payload stays server-side. */
+      readonly item: {
+        readonly id: string;
+        readonly type: string;
+        readonly source: string;
+        readonly summary: string;
+      };
     }
   | { readonly id?: string; readonly type: "tool"; readonly toolCall: ToolCallRecord }
   | { readonly id?: string; readonly type: "completed"; readonly result: unknown }
@@ -84,10 +111,25 @@ export async function runStockInvestigation(
           subSector: update.baseline?.company?.subSector ?? undefined,
           asOfDate: latestBaselineDate(update.baseline),
         });
-        await persistNewEvidence(input.investigationId, update.evidence, store);
+        await persistNewEvidence(input.investigationId, update.evidence, store, emit);
         await persistNewToolCalls(input.investigationId, update.toolCalls, store, emit);
+
+        if (update.plan && state.route) {
+          emit({
+            type: "plan",
+            hypotheses: update.plan.hypotheses,
+            steps: update.plan.steps.map((step) => ({
+              tool: step.tool,
+              intent: step.intent,
+              input: step.input,
+            })),
+            branch: state.route.branch,
+            rationale: state.route.rationale,
+          });
+        }
+
         if (update.status) {
-          emit({ type: "step", step: node, status: update.status });
+          emit({ type: "step", step: node, status: update.status, label: stepLabel(node) });
           logInvestigation({
             type: "step",
             investigationId: input.investigationId,
@@ -163,8 +205,34 @@ async function persistNewEvidence(
   investigationId: string,
   items: readonly EvidenceItem[] | undefined,
   store: InvestigationStore,
+  emit: InvestigationEventEmitter,
 ): Promise<void> {
-  if (items && items.length > 0) await store.appendEvidence(investigationId, items);
+  if (!items || items.length === 0) return;
+  await store.appendEvidence(investigationId, items);
+  for (const item of items) {
+    emit({
+      type: "evidence",
+      item: {
+        id: item.id,
+        type: item.type,
+        source: item.source,
+        summary: item.summary,
+      },
+    });
+  }
+}
+
+const STEP_LABELS: Record<string, string> = {
+  collectBaseline: "Collecting price, market, and company context",
+  calculateSignals: "Calculating returns and volume signals",
+  planInvestigation: "Planning which evidence to check",
+  investigateEvidence: "Checking sector, flow, broker, and news",
+  synthesize: "Synthesizing the evidence-backed explanation",
+  finalize: "Finalizing the investigation",
+};
+
+function stepLabel(node: string): string {
+  return STEP_LABELS[node] ?? node;
 }
 
 async function persistNewToolCalls(
