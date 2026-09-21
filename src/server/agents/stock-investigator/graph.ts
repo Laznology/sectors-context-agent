@@ -279,8 +279,18 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
     .compile();
 }
 
+/**
+ * Every tool call gets its own deadline. Without one, a hung Sectors request
+ * stalls the whole investigation, because nothing else bounds tool latency.
+ */
+const TOOL_TIMEOUT_MS = Number(process.env.TOOL_TIMEOUT_MS ?? 20_000);
+
 function createToolContext(state: StockInvestigatorStateType): ToolContext {
-  return { ticker: state.ticker, investigationId: state.investigationId };
+  return {
+    ticker: state.ticker,
+    investigationId: state.investigationId,
+    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  };
 }
 
 function createToolCall(input: {

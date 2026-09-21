@@ -1,6 +1,7 @@
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { streamSSE } from "hono/streaming";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import {
   ConversationRequestSchema,
   InvestigationRequestSchema,
@@ -14,9 +15,17 @@ import type {
   InvestigationEventEmitter,
   InvestigationRunInput,
 } from "../agents/stock-investigator/runner.ts";
-import type { InvestigationStore } from "../db/investigations.ts";
+import type { InvestigationDetail, InvestigationStore } from "../db/investigations.ts";
 
 export type InvestigationRouteEnv = {};
+
+/** Query params shared by the list endpoints. */
+export const PaginationSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type Pagination = z.infer<typeof PaginationSchema>;
 
 export type InvestigationRouteDependencies = {
   readonly store: InvestigationStore;
@@ -39,8 +48,26 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
   routes.use("*", dependencies.authMiddleware);
 
   routes.get("/", async (context) => {
-    const investigations = await dependencies.store.list(dependencies.resolveUserId(context));
-    return context.json({ investigations });
+    const pagination = PaginationSchema.safeParse({
+      limit: context.req.query("limit"),
+      offset: context.req.query("offset"),
+    });
+    if (!pagination.success) {
+      return context.json(
+        { error: "Invalid pagination", details: pagination.error.flatten() },
+        400,
+      );
+    }
+
+    const userId = dependencies.resolveUserId(context);
+    const { limit, offset } = pagination.data;
+    // ponytail: one extra row tells us whether more exist without a COUNT query.
+    const rows = await dependencies.store.list(userId, { limit: limit + 1, offset });
+    const hasMore = rows.length > limit;
+    return context.json({
+      investigations: hasMore ? rows.slice(0, limit) : rows,
+      pagination: { limit, offset, hasMore },
+    });
   });
 
   routes.post("/", async (context) => {
@@ -78,13 +105,26 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
       question: parsed.data.question,
       previousInvestigationId: previousInvestigation?.id,
     });
-    dependencies.manager.start({
-      investigationId: created.id,
-      userId,
-      ticker,
-      question: parsed.data.question,
-      previousInvestigation,
-    });
+
+    try {
+      dependencies.manager.start({
+        investigationId: created.id,
+        userId,
+        ticker,
+        question: parsed.data.question,
+        previousInvestigation,
+      });
+    } catch (error) {
+      if (error instanceof TooManyRunsError) {
+        // The row exists but will never run, so mark it failed rather than
+        // leaving a "pending" investigation that nothing will ever pick up.
+        await dependencies.store.fail(created.id, error.message);
+        return context.json({ error: error.message }, 429);
+      }
+      await dependencies.store.fail(created.id, errorMessage(error));
+      throw error;
+    }
+
     return context.json({ id: created.id, status: "pending" }, 202);
   });
 
@@ -124,6 +164,26 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     const userId = dependencies.resolveUserId(context);
     const investigation = await dependencies.store.getDetail(userId, context.req.param("id"));
     if (!investigation) return context.json({ error: "Investigation not found" }, 404);
+
+    // A run is only in memory while it is active (plus a short retention window
+    // afterwards). For anything older, replay the persisted outcome so a page
+    // reload after completion still receives a terminal event.
+    if (!dependencies.manager.has(investigation.id)) {
+      return streamSSE(context, async (stream) => {
+        await stream.writeSSE({
+          event: "snapshot",
+          id: randomUUID(),
+          data: JSON.stringify({
+            type: "snapshot",
+            status: investigation.status,
+            statusLabel: investigation.statusLabel ?? null,
+            result:
+              investigation.status === "completed" ? investigationResult(investigation) : null,
+            error: investigation.errorMessage ?? null,
+          }),
+        });
+      });
+    }
 
     return streamSSE(context, async (stream) => {
       try {
@@ -194,23 +254,61 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
 export class InvestigationRunManager {
   private readonly runs = new Map<string, InvestigationRun>();
   private readonly execute: InvestigationExecutor;
+  private readonly maxConcurrentPerUser: number;
+  private readonly runningByUser = new Map<string, number>();
+  private readonly finishedRetentionMs: number;
 
-  constructor(execute: InvestigationExecutor) {
+  constructor(
+    execute: InvestigationExecutor,
+    options: { maxConcurrentPerUser?: number; finishedRetentionMs?: number } = {},
+  ) {
     this.execute = execute;
+    this.maxConcurrentPerUser = options.maxConcurrentPerUser ?? 3;
+    // Kept briefly so a client that reconnects right after completion still
+    // receives the terminal event instead of "run is not available".
+    this.finishedRetentionMs = options.finishedRetentionMs ?? 5 * 60_000;
   }
+
   start(input: InvestigationRunInput): void {
     if (this.runs.has(input.investigationId)) {
       throw new Error(`Investigation is already running: ${input.investigationId}`);
     }
+
+    const active = this.runningByUser.get(input.userId) ?? 0;
+    if (active >= this.maxConcurrentPerUser) {
+      throw new TooManyRunsError(
+        `Already running ${active} investigations. Wait for one to finish before starting another.`,
+      );
+    }
+
     const run: InvestigationRun = { events: [], waiters: new Set(), done: false };
     this.runs.set(input.investigationId, run);
+    this.runningByUser.set(input.userId, active + 1);
+
     const emit: InvestigationEventEmitter = (event) => this.publish(input.investigationId, event);
-    void this.execute(input, emit).catch((error: unknown) => {
-      this.publish(input.investigationId, {
-        type: "error",
-        message: errorMessage(error),
+    void this.execute(input, emit)
+      .catch((error: unknown) => {
+        this.publish(input.investigationId, {
+          type: "error",
+          message: errorMessage(error),
+        });
+      })
+      .finally(() => {
+        this.runningByUser.set(
+          input.userId,
+          Math.max(0, (this.runningByUser.get(input.userId) ?? 1) - 1),
+        );
+        // The buffered events are only useful while a client may still attach.
+        setTimeout(() => {
+          const finished = this.runs.get(input.investigationId);
+          if (finished?.done) this.runs.delete(input.investigationId);
+        }, this.finishedRetentionMs).unref();
       });
-    });
+  }
+
+  /** `true` while the run is in memory, including the post-completion retention window. */
+  has(investigationId: string): boolean {
+    return this.runs.has(investigationId);
   }
 
   async *subscribe(
@@ -251,6 +349,14 @@ type InvestigationExecutor = (
   emit: InvestigationEventEmitter,
 ) => Promise<void>;
 
+/** Raised when one user already has the maximum number of investigations running. */
+export class TooManyRunsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TooManyRunsError";
+  }
+}
+
 /**
  * Each semantic tool emits exactly one evidence category, so the investigation
  * path can attribute stored evidence back to the step that produced it.
@@ -290,6 +396,27 @@ async function waitForRun(run: InvestigationRun, signal?: AbortSignal): Promise<
 
 function isTerminalEvent(event: InvestigationEvent): boolean {
   return event.type === "completed" || event.type === "error";
+}
+
+/**
+ * Reshapes a persisted investigation back into the result payload the SSE
+ * `completed` event carries, so a late subscriber sees the same shape.
+ */
+function investigationResult(investigation: InvestigationDetail): Record<string, unknown> {
+  return {
+    driver: investigation.driver ?? null,
+    classification: investigation.classification ?? null,
+    status: investigation.statusLabel ?? null,
+    confidence: investigation.confidence ?? null,
+    confidenceReason: investigation.confidenceReason ?? null,
+    whatChanged: investigation.whatChanged ?? null,
+    whyItMatters: investigation.whyItMatters ?? null,
+    explanation: investigation.explanation ?? null,
+    whatToMonitor: investigation.whatToMonitorJson ?? [],
+    evidenceSummary: investigation.evidenceSummaryJson ?? [],
+    changesSincePrevious: investigation.changesSincePrevious ?? null,
+    disclaimer: investigation.disclaimer ?? null,
+  };
 }
 
 export async function readJson(context: Context): Promise<unknown> {

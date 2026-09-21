@@ -2,7 +2,7 @@ import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import { TickerSchema } from "../../shared/schemas/investigation.ts";
 import type { WatchlistStore } from "../db/watchlists.ts";
-import { readJson } from "./investigations.ts";
+import { PaginationSchema, readJson } from "./investigations.ts";
 
 const WatchlistRequestSchema = z.object({ ticker: TickerSchema });
 
@@ -29,7 +29,25 @@ export function createWatchlistRoutes(dependencies: WatchlistRouteDependencies):
     if (context.req.query("view") === "dashboard") {
       return context.json({ watchlist: await dependencies.store.dashboard(userId) });
     }
-    return context.json({ watchlist: await dependencies.store.list(userId) });
+
+    const pagination = PaginationSchema.safeParse({
+      limit: context.req.query("limit"),
+      offset: context.req.query("offset"),
+    });
+    if (!pagination.success) {
+      return context.json(
+        { error: "Invalid pagination", details: pagination.error.flatten() },
+        400,
+      );
+    }
+
+    const { limit, offset } = pagination.data;
+    const rows = await dependencies.store.list(userId, { limit: limit + 1, offset });
+    const hasMore = rows.length > limit;
+    return context.json({
+      watchlist: hasMore ? rows.slice(0, limit) : rows,
+      pagination: { limit, offset, hasMore },
+    });
   });
 
   routes.post("/", async (context) => {

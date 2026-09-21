@@ -27,7 +27,7 @@ describe("watchlist API", () => {
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ watchlist: [{ ticker: "BBCA" }] });
-    expect(list).toHaveBeenCalledWith("user-1");
+    expect(list).toHaveBeenCalledWith("user-1", { limit: 51, offset: 0 });
   });
 
   it("adds a normalized ticker", async () => {

@@ -9,7 +9,7 @@ export type WatchlistItem = {
 };
 
 export interface WatchlistStore {
-  list(userId: string): Promise<WatchlistItem[]>;
+  list(userId: string, page?: { limit: number; offset: number }): Promise<WatchlistItem[]>;
   add(userId: string, ticker: string): Promise<void>;
   remove(userId: string, ticker: string): Promise<void>;
   /** Watchlist plus dashboard context; joined server-side to avoid N+1 client calls. */
@@ -23,12 +23,17 @@ export class PostgresWatchlistStore implements WatchlistStore {
     this.db = db;
   }
 
-  async list(userId: string): Promise<WatchlistItem[]> {
+  async list(
+    userId: string,
+    page: { limit: number; offset: number } = { limit: 50, offset: 0 },
+  ): Promise<WatchlistItem[]> {
     const rows = await this.db
       .select({ ticker: watchlists.ticker, createdAt: watchlists.createdAt })
       .from(watchlists)
       .where(eq(watchlists.userId, userId))
-      .orderBy(asc(watchlists.createdAt));
+      .orderBy(asc(watchlists.createdAt))
+      .limit(page.limit)
+      .offset(page.offset);
 
     return rows.map((row) => ({
       ticker: row.ticker,

@@ -124,7 +124,7 @@ export type InvestigationCompletion = {
 export interface InvestigationStore {
   create(input: InvestigationCreateInput): Promise<{ id: string }>;
   findPrevious(userId: string, ticker: string): Promise<PreviousInvestigation | null>;
-  list(userId: string): Promise<InvestigationSummary[]>;
+  list(userId: string, page?: { limit: number; offset: number }): Promise<InvestigationSummary[]>;
   getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null>;
   updateFromState(investigationId: string, patch: InvestigationStatePatch): Promise<void>;
   appendEvidence(investigationId: string, items: readonly EvidenceItem[]): Promise<void>;
@@ -203,7 +203,10 @@ export class PostgresInvestigationStore implements InvestigationStore {
     };
   }
 
-  async list(userId: string): Promise<InvestigationSummary[]> {
+  async list(
+    userId: string,
+    page: { limit: number; offset: number } = { limit: 50, offset: 0 },
+  ): Promise<InvestigationSummary[]> {
     const rows = await this.db
       .select({
         id: investigations.id,
@@ -219,7 +222,9 @@ export class PostgresInvestigationStore implements InvestigationStore {
       })
       .from(investigations)
       .where(eq(investigations.userId, userId))
-      .orderBy(desc(investigations.createdAt));
+      .orderBy(desc(investigations.createdAt))
+      .limit(page.limit)
+      .offset(page.offset);
 
     return rows.map((row) => ({
       id: row.id,
