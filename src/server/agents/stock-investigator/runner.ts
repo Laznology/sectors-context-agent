@@ -2,10 +2,13 @@ import type { InvestigationStatus } from "../../../shared/schemas/investigation.
 import type { DeterministicSignals } from "../../analysis/signals.ts";
 import type { InvestigationStore } from "../../db/investigations.ts";
 import { buildStockInvestigatorGraph, type StockInvestigatorDependencies } from "./graph.ts";
+import { logInvestigation } from "./logging.ts";
+import type { InvestigationRoute } from "./routing.ts";
 import type {
   BaselineContext,
   EvidenceItem,
   InvestigationPlan,
+  InvestigationPlanStep,
   InvestigationResult,
   PreviousInvestigation,
   ToolCallRecord,
@@ -16,6 +19,8 @@ type StreamUpdate = {
   readonly status?: InvestigationStatus;
   readonly baseline?: BaselineContext;
   readonly signals?: DeterministicSignals;
+  readonly route?: InvestigationRoute;
+  readonly blockedSteps?: readonly InvestigationPlanStep[];
   readonly plan?: InvestigationPlan;
   readonly previousInvestigation?: PreviousInvestigation | null;
   readonly evidence?: readonly EvidenceItem[];
@@ -56,7 +61,13 @@ export async function runStockInvestigation(
   store: InvestigationStore,
   emit: InvestigationEventEmitter,
 ): Promise<void> {
+  const startedAt = Date.now();
   emit({ type: "started", investigationId: input.investigationId, ticker: input.ticker });
+  logInvestigation({
+    type: "started",
+    investigationId: input.investigationId,
+    ticker: input.ticker,
+  });
   const graph = buildStockInvestigatorGraph(dependencies);
   let state = initialState(input);
 
@@ -69,10 +80,21 @@ export async function runStockInvestigation(
           status: update.status,
           signalsJson: update.signals,
           planJson: update.plan,
+          companyName: update.baseline?.company?.companyName ?? undefined,
+          subSector: update.baseline?.company?.subSector ?? undefined,
+          asOfDate: latestBaselineDate(update.baseline),
         });
         await persistNewEvidence(input.investigationId, update.evidence, store);
         await persistNewToolCalls(input.investigationId, update.toolCalls, store, emit);
-        if (update.status) emit({ type: "step", step: node, status: update.status });
+        if (update.status) {
+          emit({ type: "step", step: node, status: update.status });
+          logInvestigation({
+            type: "step",
+            investigationId: input.investigationId,
+            step: node,
+            status: update.status,
+          });
+        }
       }
     }
 
@@ -86,10 +108,23 @@ export async function runStockInvestigation(
       asOfDate: latestBaselineDate(state.baseline),
     });
     emit({ type: "completed", result: state.result });
+    logInvestigation({
+      type: "completed",
+      investigationId: input.investigationId,
+      driver: state.result.driver,
+      statusLabel: state.result.status,
+      durationMs: Date.now() - startedAt,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await store.fail(input.investigationId, message);
     emit({ type: "error", message });
+    logInvestigation({
+      type: "failed",
+      investigationId: input.investigationId,
+      message,
+      durationMs: Date.now() - startedAt,
+    });
   }
 }
 
@@ -100,6 +135,8 @@ function initialState(input: InvestigationRunInput): StockInvestigatorStateType 
     question: input.question,
     baseline: undefined,
     signals: undefined,
+    route: undefined,
+    blockedSteps: [],
     plan: undefined,
     previousInvestigation: input.previousInvestigation,
     evidence: [],
@@ -116,6 +153,7 @@ function mergeState(
   return {
     ...current,
     ...update,
+    blockedSteps: update.blockedSteps ? [...update.blockedSteps] : current.blockedSteps,
     evidence: current.evidence.concat(update.evidence ?? []),
     toolCalls: current.toolCalls.concat(update.toolCalls ?? []),
   };
@@ -137,7 +175,17 @@ async function persistNewToolCalls(
 ): Promise<void> {
   if (!records || records.length === 0) return;
   await store.appendToolCalls(investigationId, records);
-  for (const toolCall of records) emit({ type: "tool", toolCall });
+  for (const toolCall of records) {
+    emit({ type: "tool", toolCall });
+    logInvestigation({
+      type: "tool",
+      investigationId,
+      toolName: toolCall.toolName,
+      status: toolCall.status,
+      durationMs: toolCall.durationMs,
+      errorCode: toolCall.errorCode,
+    });
+  }
 }
 
 function latestBaselineDate(baseline: StockInvestigatorStateType["baseline"]): string | undefined {

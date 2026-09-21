@@ -6,6 +6,7 @@ import { requireSession } from "../auth-middleware.ts";
 import { auth } from "../auth.ts";
 import { PostgresInvestigationStore } from "../db/investigations.ts";
 import { PostgresWatchlistStore } from "../db/watchlists.ts";
+import { fetchCompanyOverview } from "../sectors/company.ts";
 import { healthRoutes } from "./health.ts";
 import { createInvestigationRoutes, InvestigationRunManager } from "./investigations.ts";
 import { createWatchlistRoutes } from "./watchlist.ts";
@@ -29,6 +30,7 @@ const investigationRoutes = createInvestigationRoutes({
   conversation: (input) => runInvestigationConversation(input, investigationStore),
   authMiddleware: requireSession,
   resolveUserId: resolveSessionUserId,
+  verifyTicker: (ticker, signal) => fetchCompanyOverview(ticker, signal),
 });
 apiRoutes.route("/investigations", investigationRoutes);
 
@@ -36,6 +38,7 @@ const watchlistRoutes = createWatchlistRoutes({
   store: new PostgresWatchlistStore(),
   authMiddleware: requireSession,
   resolveUserId: resolveSessionUserId,
+  verifyTicker: (ticker, signal) => fetchCompanyOverview(ticker, signal),
 });
 apiRoutes.route("/watchlist", watchlistRoutes);
 

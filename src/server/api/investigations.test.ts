@@ -177,4 +177,140 @@ describe("investigation API", () => {
     expect(response.status).toBe(400);
     expect(create).not.toHaveBeenCalled();
   });
+
+  it("rejects a well-formed ticker that Sectors does not know", async () => {
+    const create = vi.fn();
+    const store: InvestigationStore = {
+      create,
+      findPrevious: vi.fn(),
+      getDetail: vi.fn(),
+      list: vi.fn(),
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation: vi.fn(),
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+      verifyTicker: async () => null,
+    });
+
+    const response = await app.request("http://localhost/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker: "ZZZZ" }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: expect.stringContaining("ZZZZ") });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("reports a Sectors outage as 502 instead of creating a doomed investigation", async () => {
+    const create = vi.fn();
+    const store: InvestigationStore = {
+      create,
+      findPrevious: vi.fn(),
+      getDetail: vi.fn(),
+      list: vi.fn(),
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation: vi.fn(),
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+      verifyTicker: async () => {
+        throw new Error("Sectors API request failed");
+      },
+    });
+
+    const response = await app.request("http://localhost/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticker: "ANTM" }),
+    });
+
+    expect(response.status).toBe(502);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("exposes the investigation path for audit", async () => {
+    const store: InvestigationStore = {
+      create: vi.fn(),
+      findPrevious: vi.fn(),
+      getDetail: vi.fn().mockResolvedValue({
+        id: "inv-4",
+        ticker: "ANTM",
+        status: "completed",
+        statusLabel: "attention",
+        plan: {
+          hypotheses: ["FLOW_DRIVEN"],
+          steps: [{ id: "s1", intent: "Check flow", tool: "get_foreign_flow" }],
+        },
+        toolCalls: [
+          {
+            id: "c1",
+            toolName: "get_foreign_flow",
+            status: "succeeded",
+            reason: "Check flow",
+            durationMs: 120,
+          },
+          {
+            id: "c2",
+            toolName: "get_broker_activity",
+            status: "skipped",
+            reason: "Check brokers",
+            errorCode: "ROUTING_BLOCKED",
+          },
+        ],
+        evidence: [
+          {
+            id: "e1",
+            type: "foreign_flow",
+            source: "sectors:foreign-flow:ANTM",
+            summary: "Net inflow strengthened.",
+          },
+        ],
+      }),
+      list: vi.fn(),
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation: vi.fn(),
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+    });
+
+    const response = await app.request("http://localhost/inv-4/path");
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      hypotheses: ["FLOW_DRIVEN"],
+      evidenceCategories: ["foreign_flow"],
+      steps: [
+        { tool: "get_foreign_flow", status: "succeeded", evidence: ["Net inflow strengthened."] },
+        { tool: "get_broker_activity", status: "skipped", errorCode: "ROUTING_BLOCKED" },
+      ],
+    });
+  });
 });

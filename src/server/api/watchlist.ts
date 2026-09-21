@@ -10,6 +10,11 @@ export type WatchlistRouteDependencies = {
   readonly store: WatchlistStore;
   readonly authMiddleware: MiddlewareHandler;
   readonly resolveUserId: (context: Context) => string;
+  /** Returns `null` when Sectors has no record for the ticker. */
+  readonly verifyTicker?: (
+    ticker: string,
+    signal?: AbortSignal,
+  ) => Promise<{ companyName: string } | null>;
 };
 
 export function createWatchlistRoutes(dependencies: WatchlistRouteDependencies): Hono {
@@ -18,8 +23,13 @@ export function createWatchlistRoutes(dependencies: WatchlistRouteDependencies):
   routes.use("*", dependencies.authMiddleware);
 
   routes.get("/", async (context) => {
-    const watchlist = await dependencies.store.list(dependencies.resolveUserId(context));
-    return context.json({ watchlist });
+    const userId = dependencies.resolveUserId(context);
+    // `?view=dashboard` returns the same list enriched with company name, last
+    // close, and last investigation so the dashboard needs one call, not N+1.
+    if (context.req.query("view") === "dashboard") {
+      return context.json({ watchlist: await dependencies.store.dashboard(userId) });
+    }
+    return context.json({ watchlist: await dependencies.store.list(userId) });
   });
 
   routes.post("/", async (context) => {
@@ -29,8 +39,27 @@ export function createWatchlistRoutes(dependencies: WatchlistRouteDependencies):
       return context.json({ error: "Invalid ticker", details: parsed.error.flatten() }, 400);
     }
 
-    await dependencies.store.add(dependencies.resolveUserId(context), parsed.data.ticker);
-    return context.json({ ticker: parsed.data.ticker }, 201);
+    const ticker = parsed.data.ticker;
+    if (dependencies.verifyTicker) {
+      let known: { companyName: string } | null;
+      try {
+        known = await dependencies.verifyTicker(ticker, context.req.raw.signal);
+      } catch (error) {
+        return context.json(
+          {
+            error: "Could not verify ticker with Sectors",
+            message: error instanceof Error ? error.message : String(error),
+          },
+          502,
+        );
+      }
+      if (!known) {
+        return context.json({ error: `Sectors has no stock record for ${ticker}` }, 404);
+      }
+    }
+
+    await dependencies.store.add(dependencies.resolveUserId(context), ticker);
+    return context.json({ ticker }, 201);
   });
 
   routes.delete("/:ticker", async (context) => {

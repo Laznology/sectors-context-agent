@@ -25,24 +25,61 @@ export type DeterministicSignals = {
   readonly unusualMovement: boolean;
 };
 
-export const UNUSUAL_RETURN_THRESHOLD = 0.02;
-export const UNUSUAL_VOLUME_RATIO_THRESHOLD = 1.5;
+export type SignalThresholds = {
+  /** Absolute relative return that counts as an unusual move. */
+  readonly unusualReturn: number;
+  /** Volume ratio that counts as unusual participation. */
+  readonly unusualVolumeRatio: number;
+  /** Trading days used for the average-volume baseline. */
+  readonly volumeWindow: number;
+};
 
-export function calculateSignals(input: SignalInput): DeterministicSignals {
+/** Product heuristics, not financial recommendations. Override per environment. */
+export const DEFAULT_SIGNAL_THRESHOLDS: SignalThresholds = {
+  unusualReturn: 0.02,
+  unusualVolumeRatio: 1.5,
+  volumeWindow: 20,
+};
+
+/** Reads the thresholds from the environment, falling back to the documented defaults. */
+export function signalThresholdsFromEnv(
+  environment: NodeJS.ProcessEnv = process.env,
+): SignalThresholds {
+  return {
+    unusualReturn: positiveNumber(
+      environment.SIGNAL_UNUSUAL_RETURN,
+      DEFAULT_SIGNAL_THRESHOLDS.unusualReturn,
+    ),
+    unusualVolumeRatio: positiveNumber(
+      environment.SIGNAL_UNUSUAL_VOLUME_RATIO,
+      DEFAULT_SIGNAL_THRESHOLDS.unusualVolumeRatio,
+    ),
+    volumeWindow: positiveInteger(
+      environment.SIGNAL_VOLUME_WINDOW,
+      DEFAULT_SIGNAL_THRESHOLDS.volumeWindow,
+    ),
+  };
+}
+
+export function calculateSignals(
+  input: SignalInput,
+  thresholds: SignalThresholds = DEFAULT_SIGNAL_THRESHOLDS,
+): DeterministicSignals {
   const prices = [...input.price].sort(byDate);
   const market = [...input.market].sort(byDate);
   const latestPrice = prices.at(-1);
   const previousPrice = prices.at(-2);
   const latestMarket = market.at(-1);
   const previousMarket = market.at(-2);
-  const averageVolume = calculateAverageVolume(prices.slice(0, -1).map((point) => point.volume));
+  const baseline = prices.slice(0, -1).slice(-thresholds.volumeWindow);
+  const averageVolume = calculateAverageVolume(baseline.map((point) => point.volume));
   const volumeRatio = divide(latestPrice?.volume, averageVolume);
   const dailyReturn = percentChange(previousPrice?.close, latestPrice?.close);
   const marketReturn = percentChange(previousMarket?.close, latestMarket?.close);
   const relativeReturn = subtract(dailyReturn, marketReturn);
   const unusualMovement =
-    Math.abs(relativeReturn ?? dailyReturn ?? 0) >= UNUSUAL_RETURN_THRESHOLD ||
-    (volumeRatio !== null && volumeRatio >= UNUSUAL_VOLUME_RATIO_THRESHOLD);
+    Math.abs(relativeReturn ?? dailyReturn ?? 0) >= thresholds.unusualReturn ||
+    (volumeRatio !== null && volumeRatio >= thresholds.unusualVolumeRatio);
 
   return {
     latestPrice: latestPrice?.close ?? null,
@@ -78,4 +115,15 @@ function divide(numerator: number | undefined, denominator: number | null): numb
 function subtract(left: number | null, right: number | null): number | null {
   if (left === null || right === null) return null;
   return left - right;
+}
+
+function positiveNumber(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function positiveInteger(raw: string | undefined, fallback: number): number {
+  const value = positiveNumber(raw, fallback);
+  return Number.isInteger(value) ? value : Math.round(value);
 }

@@ -1,4 +1,5 @@
 import { generateObject } from "ai";
+import { INVESTIGATION_DISCLAIMER } from "../../../shared/schemas/investigation.ts";
 import { plannerModel, synthesizerModel } from "../../ai/gateway.ts";
 import type { PlannerInput, SynthesizerInput } from "./graph.ts";
 import {
@@ -17,8 +18,9 @@ export async function planWithModel(
     schema: InvestigationPlanSchema,
     prompt: [
       "You are the planning stage of an auditable Indonesian stock investigation.",
-      "Choose only from the approved semantic tools listed below.",
+      "Choose only from the approved tools listed below.",
       "Never invent URLs, shell commands, tools, or financial data.",
+      "List the explanatory drivers you are testing in hypotheses, using only MARKET_DRIVEN, SECTOR_DRIVEN, FLOW_DRIVEN, COMPANY_SPECIFIC, MIXED, or UNCLEAR.",
       "Do not calculate routine numeric metrics; deterministic signals are supplied.",
       "Use the fewest evidence calls needed to resolve the question.",
       "If evidence is missing or conflicting, plan a scoped follow-up or leave it unresolved.",
@@ -28,6 +30,8 @@ export async function planWithModel(
       `Question: ${input.question ?? "Explain the recent movement and what to monitor."}`,
       `Baseline: ${JSON.stringify(input.baseline)}`,
       `Deterministic signals: ${JSON.stringify(input.signals)}`,
+      `Routing branch: ${input.route.branch}`,
+      `Routing rationale: ${input.route.rationale}`,
       `Previous investigation: ${JSON.stringify(input.previousInvestigation)}`,
       `Existing evidence: ${JSON.stringify(summarizeEvidence(input.evidence))}`,
       `Approved tools: ${JSON.stringify(tools)}`,
@@ -44,7 +48,10 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
       "You are the synthesis stage of an auditable Indonesian stock investigation.",
       "Explain observations from supplied data only; never invent missing facts.",
       "Use deterministic signals for numeric claims and preserve evidence conflicts.",
-      "Confidence must reflect evidence quality and uncertainty.",
+      "Confidence must reflect evidence quality and uncertainty; explain it in confidenceReason.",
+      "Set status to 'attention' when the move is unusual or evidence is conflicting, 'normal' when the move is unremarkable, and 'unclear' when evidence is insufficient.",
+      "whatToMonitor must contain 2 or 3 concrete, checkable items, not generic advice.",
+      "evidenceSummary must have one entry per evidence category you actually used, with a short finding and an importance of high, medium, or low.",
       "Never produce BUY, SELL, or HOLD advice, trade instructions, guaranteed returns, or price targets as facts.",
       "Use concise product language: analysis, context, evidence, attention, confidence, and monitoring.",
       "Return only the requested structured result; do not include private reasoning.",
@@ -56,7 +63,9 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
       `Evidence: ${JSON.stringify(summarizeEvidence(input.evidence))}`,
     ].join("\n"),
   });
-  return InvestigationResultSchema.parse(object);
+  const parsed = InvestigationResultSchema.parse(object);
+  // ponytail: disclaimer is a product guarantee, so the server owns it instead of trusting the model.
+  return { ...parsed, disclaimer: INVESTIGATION_DISCLAIMER };
 }
 
 function summarizeEvidence(

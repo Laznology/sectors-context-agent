@@ -26,6 +26,11 @@ export type InvestigationRouteDependencies = {
   ) => Promise<InvestigationConversationResult>;
   readonly authMiddleware: MiddlewareHandler;
   readonly resolveUserId: (context: Context) => string;
+  /** Returns `null` when Sectors has no record for the ticker. */
+  readonly verifyTicker?: (
+    ticker: string,
+    signal?: AbortSignal,
+  ) => Promise<{ companyName: string } | null>;
 };
 
 export function createInvestigationRoutes(dependencies: InvestigationRouteDependencies): Hono {
@@ -49,17 +54,34 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     }
 
     const userId = dependencies.resolveUserId(context);
-    const previousInvestigation = await dependencies.store.findPrevious(userId, parsed.data.ticker);
+    const ticker = parsed.data.ticker;
+
+    if (dependencies.verifyTicker) {
+      let known: { companyName: string } | null;
+      try {
+        known = await dependencies.verifyTicker(ticker, context.req.raw.signal);
+      } catch (error) {
+        return context.json(
+          { error: "Could not verify ticker with Sectors", message: errorMessage(error) },
+          502,
+        );
+      }
+      if (!known) {
+        return context.json({ error: `Sectors has no stock record for ${ticker}` }, 404);
+      }
+    }
+
+    const previousInvestigation = await dependencies.store.findPrevious(userId, ticker);
     const created = await dependencies.store.create({
       userId,
-      ticker: parsed.data.ticker,
+      ticker,
       question: parsed.data.question,
       previousInvestigationId: previousInvestigation?.id,
     });
     dependencies.manager.start({
       investigationId: created.id,
       userId,
-      ticker: parsed.data.ticker,
+      ticker,
       question: parsed.data.question,
       previousInvestigation,
     });
@@ -136,6 +158,36 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     return context.json(investigation);
   });
 
+  // PRD §27/§32: the investigation path is the auditable view of what the agent
+  // actually did. Derived from stored tool calls, so it needs no extra state.
+  routes.get("/:id/path", async (context) => {
+    const investigation = await dependencies.store.getDetail(
+      dependencies.resolveUserId(context),
+      context.req.param("id"),
+    );
+    if (!investigation) return context.json({ error: "Investigation not found" }, 404);
+
+    const plan = investigation.plan;
+    return context.json({
+      id: investigation.id,
+      ticker: investigation.ticker,
+      status: investigation.status,
+      statusLabel: investigation.statusLabel ?? null,
+      hypotheses: plan?.hypotheses ?? [],
+      steps: (investigation.toolCalls ?? []).map((call) => ({
+        tool: call.toolName,
+        reason: call.reason ?? null,
+        status: call.status,
+        durationMs: call.durationMs ?? null,
+        errorCode: call.errorCode ?? null,
+        evidence: (investigation.evidence ?? [])
+          .filter((item) => item.type === EVIDENCE_TYPE_BY_TOOL[call.toolName])
+          .map((item) => item.summary),
+      })),
+      evidenceCategories: [...new Set((investigation.evidence ?? []).map((item) => item.type))],
+    });
+  });
+
   return routes;
 }
 
@@ -198,6 +250,21 @@ type InvestigationExecutor = (
   input: InvestigationRunInput,
   emit: InvestigationEventEmitter,
 ) => Promise<void>;
+
+/**
+ * Each semantic tool emits exactly one evidence category, so the investigation
+ * path can attribute stored evidence back to the step that produced it.
+ */
+const EVIDENCE_TYPE_BY_TOOL: Record<string, string> = {
+  get_price_context: "price_volume",
+  get_market_context: "market",
+  get_company_context: "company",
+  get_sector_context: "sector",
+  get_foreign_flow: "foreign_flow",
+  get_broker_activity: "broker",
+  get_company_news: "news",
+  get_company_filings: "filing",
+};
 
 type InvestigationRun = {
   readonly events: InvestigationEvent[];

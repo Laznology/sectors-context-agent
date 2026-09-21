@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { calculateSignals } from "../../analysis/signals.ts";
+import { calculateSignals, signalThresholdsFromEnv } from "../../analysis/signals.ts";
 import type { ToolContext, ToolDefinition } from "../../tools/index.ts";
 import { sectorsInvestigationTools } from "../../tools/sectors.ts";
 import {
@@ -21,12 +21,29 @@ const PriceValueSchema = z.object({
 const MarketValueSchema = z.object({
   records: z.array(z.object({ date: z.string(), close: z.number() })),
 });
+const CompanyValueSchema = z.object({
+  ticker: z.string().optional(),
+  companyName: z.string().optional(),
+  sector: z.string().nullable().optional(),
+  subSector: z.string().nullable().optional(),
+  subSectorSlug: z.string().nullable().optional(),
+  industry: z.string().nullable().optional(),
+  marketCap: z.number().nullable().optional(),
+  lastClosePrice: z.number().nullable().optional(),
+  lastCloseDate: z.string().nullable().optional(),
+  indices: z.array(z.string()).optional(),
+});
 
 export function createProductionDependencies(): StockInvestigatorDependencies {
+  const thresholds = signalThresholdsFromEnv();
   return {
     collectBaseline: collectBaselineFromSectors,
-    calculateSignals: (baseline) => calculateSignals(baseline),
-    planner: (input) => planWithModel(input, sectorsInvestigationTools),
+    calculateSignals: (baseline) => calculateSignals(baseline, thresholds),
+    planner: (input) =>
+      planWithModel(
+        input,
+        sectorsInvestigationTools.filter((tool) => input.route.allowedTools.includes(tool.name)),
+      ),
     tools: sectorsInvestigationTools,
     synthesizer: (input) => synthesizeWithModel(input),
   };
@@ -118,10 +135,13 @@ async function collectBaselineFromSectors(
     ?.execution?.value;
   const price = PriceValueSchema.safeParse(priceValue);
   const market = MarketValueSchema.safeParse(marketValue);
+  const company = CompanyValueSchema.safeParse(
+    (companyValue as { company?: unknown } | undefined)?.company,
+  );
   const baseline: BaselineContext = BaselineContextSchema.parse({
     price: price.success ? price.data.records : [],
     market: market.success ? market.data.records : [],
-    company: companyValue,
+    company: company.success ? company.data : undefined,
   });
   const evidence = outcomes.flatMap((outcome) => outcome.execution?.evidence ?? []);
   return {
@@ -134,7 +154,9 @@ async function collectBaselineFromSectors(
 function recentDateRange(): { start: string; end: string } {
   const end = new Date();
   const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - 89);
+  // PRD §9 asks for roughly 20–30 trading days. 45 calendar days covers 30
+  // trading days plus IDX holidays, and leaves slack for the 20-day volume window.
+  start.setUTCDate(start.getUTCDate() - 45);
   return { start: toDate(start), end: toDate(end) };
 }
 
