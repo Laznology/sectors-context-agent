@@ -66,6 +66,15 @@ export const ConversationRoleSchema = z.enum(["user", "assistant"]);
 
 export type ConversationRole = z.infer<typeof ConversationRoleSchema>;
 
+/** Product-facing attention state shown on the investigation badge. */
+export const InvestigationStatusLabelSchema = z.enum(["normal", "attention", "unclear"]);
+
+export type InvestigationStatusLabel = z.infer<typeof InvestigationStatusLabelSchema>;
+
+/** Required product disclaimer; the API never returns a result without it. */
+export const INVESTIGATION_DISCLAIMER =
+  "This analysis is informational and does not constitute investment advice.";
+
 /** Confidence of the classification, normalised to 0..1. */
 export const InvestigationConfidenceSchema = z.number().min(0).max(1);
 

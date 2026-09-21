@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.4.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # --deny-warnings makes a warning fail the job, so the count cannot creep
+      # back up unnoticed.
+      - name: Lint
+        run: pnpm exec vp lint --deny-warnings
+
+      # `tsc -b` runs first inside the build script.
+      - name: Type check and build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { EvidenceItem } from "../agents/stock-investigator/schemas.ts";
 import { sectorsFetch } from "../sectors/client.ts";
+import { fetchCompanyOverview } from "../sectors/company.ts";
 import { defineTool, type ToolExecutionResult } from "./contracts.ts";
 
 const DateRangeInputSchema = z.object({
@@ -106,18 +107,69 @@ export const getCompanyContext = defineTool({
   description: "Collect the latest company overview and sector metadata.",
   inputSchema: z.object({}),
   execute: async (_input, context): Promise<ToolExecutionResult> => {
-    const report = await sectorsFetch(`/company/report/${context.ticker}/`, {
-      query: { sections: "overview" },
+    const company = await fetchCompanyOverview(context.ticker, context.signal);
+    if (!company) {
+      return {
+        value: { company: null },
+        evidence: [
+          createEvidence(
+            "company",
+            `sectors:company-report:${context.ticker}`,
+            `Sectors has no company record for ${context.ticker}.`,
+            null,
+          ),
+        ],
+      };
+    }
+
+    return {
+      value: { company },
+      evidence: [
+        createEvidence(
+          "company",
+          `sectors:company-report:${company.ticker}`,
+          `Collected company overview for ${company.ticker} (${company.companyName}).`,
+          company,
+        ),
+      ],
+      asOfDate: company.lastCloseDate ?? undefined,
+    };
+  },
+});
+
+export const getSectorContext = defineTool({
+  name: "get_sector_context",
+  description:
+    "Collect statistics and market-cap context for a company subsector. Omit sub_sector to use the investigated ticker's own subsector.",
+  inputSchema: z.object({ sub_sector: z.string().trim().min(1).optional() }),
+  execute: async ({ sub_sector }, context): Promise<ToolExecutionResult> => {
+    const slug = sub_sector ?? (await resolveSubsectorSlug(context.ticker, context.signal));
+    if (!slug) {
+      return {
+        value: { subSector: null, report: null },
+        evidence: [
+          createEvidence(
+            "sector",
+            `sectors:subsector-report:${context.ticker}`,
+            `No subsector is available for ${context.ticker}; sector context was not collected.`,
+            null,
+          ),
+        ],
+      };
+    }
+
+    const report = await sectorsFetch(`/subsector/report/${encodeURIComponent(slug)}/`, {
+      query: { sections: "statistics,market_cap" },
       signal: context.signal,
       schema: CompanyResponseSchema,
     });
     return {
-      value: report,
+      value: { subSector: slug, report },
       evidence: [
         createEvidence(
-          "company",
-          `sectors:company-report:${context.ticker}`,
-          `Collected company overview metadata for ${context.ticker}.`,
+          "sector",
+          `sectors:subsector-report:${slug}`,
+          `Collected subsector statistics for ${slug}.`,
           report,
         ),
       ],
@@ -125,29 +177,10 @@ export const getCompanyContext = defineTool({
   },
 });
 
-export const getSectorContext = defineTool({
-  name: "get_sector_context",
-  description: "Collect statistics and market-cap context for a company subsector.",
-  inputSchema: z.object({ sub_sector: z.string().trim().min(1) }),
-  execute: async ({ sub_sector }, context): Promise<ToolExecutionResult> => {
-    const report = await sectorsFetch(`/subsector/report/${encodeURIComponent(sub_sector)}/`, {
-      query: { sections: "statistics,market_cap" },
-      signal: context.signal,
-      schema: CompanyResponseSchema,
-    });
-    return {
-      value: report,
-      evidence: [
-        createEvidence(
-          "sector",
-          `sectors:subsector-report:${sub_sector}`,
-          `Collected subsector statistics for ${sub_sector}.`,
-          report,
-        ),
-      ],
-    };
-  },
-});
+async function resolveSubsectorSlug(ticker: string, signal?: AbortSignal): Promise<string | null> {
+  const company = await fetchCompanyOverview(ticker, signal);
+  return company?.subSectorSlug ?? null;
+}
 
 export const getForeignFlow = defineTool({
   name: "get_foreign_flow",
@@ -176,11 +209,14 @@ export const getForeignFlow = defineTool({
 
 export const getBrokerActivity = defineTool({
   name: "get_broker_activity",
-  description: "Collect top broker buyers and sellers for the investigated ticker.",
-  inputSchema: DateRangeInputSchema,
-  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+  description:
+    "Collect top broker buyers and sellers for the investigated ticker. Use origin 'all' unless the question is specifically about foreign or domestic brokers.",
+  inputSchema: z.object({
+    origin: z.enum(["all", "foreign", "domestic"]).optional(),
+  }),
+  execute: async ({ origin = "all" }, context): Promise<ToolExecutionResult> => {
     const activity = await sectorsFetch(`/broker-summary/${context.ticker}/top/`, {
-      query: { ...dateQuery(input), origin: "local", cohort: "all", n_brokers: 5 },
+      query: { origin, cohort: "all", n_brokers: 5 },
       signal: context.signal,
       schema: BrokerResponseSchema,
     });
@@ -190,7 +226,7 @@ export const getBrokerActivity = defineTool({
         createEvidence(
           "broker",
           `sectors:broker-summary:${context.ticker}`,
-          `Collected broker activity for ${context.ticker}.`,
+          `Collected ${origin} broker activity for ${context.ticker}.`,
           activity,
         ),
       ],

@@ -3,6 +3,7 @@ import type {
   InvestigationClassification,
   InvestigationDriver,
   InvestigationStatus,
+  InvestigationStatusLabel,
   InvestigationToolCallStatus,
 } from "../../shared/schemas/investigation.ts";
 import type {
@@ -20,24 +21,34 @@ export type InvestigationCreateInput = {
   readonly ticker: string;
   readonly question?: string;
   readonly previousInvestigationId?: string;
+  /** Resolved during ticker verification so the UI can show the company name. */
+  readonly companyName?: string;
+  readonly subSector?: string | null;
 };
 
 export type InvestigationDetail = {
   readonly id: string;
   readonly userId?: string;
   readonly ticker?: string;
+  readonly companyName?: string | null;
+  readonly subSector?: string | null;
   readonly question?: string | null;
   readonly status: InvestigationStatus;
+  readonly statusLabel?: InvestigationStatusLabel | null;
   readonly classification?: InvestigationClassification | null;
   readonly driver?: InvestigationDriver | null;
   readonly confidence?: number | null;
+  readonly confidenceReason?: string | null;
   readonly signals?: unknown;
   readonly plan?: InvestigationPlan | null;
   readonly evidenceSummary?: string | null;
+  readonly evidenceSummaryJson?: readonly InvestigationEvidenceSummary[] | null;
+  readonly disclaimer?: string | null;
   readonly whatChanged?: string | null;
   readonly whyItMatters?: string | null;
   readonly explanation?: string | null;
   readonly whatToMonitor?: string | null;
+  readonly whatToMonitorJson?: readonly string[] | null;
   readonly changesSincePrevious?: string | null;
   readonly previousInvestigationId?: string | null;
   readonly errorMessage?: string | null;
@@ -48,16 +59,41 @@ export type InvestigationDetail = {
   readonly conversations?: readonly ConversationRecord[];
 };
 
+/** One evidence card shown in the investigation UI. */
+export type InvestigationEvidenceSummary = {
+  readonly label: string;
+  readonly finding: string;
+  readonly importance: "high" | "medium" | "low";
+};
+
 /** Lightweight investigation row for dashboard and history lists. */
 export type InvestigationSummary = {
   readonly id: string;
   readonly ticker: string;
+  readonly companyName?: string | null;
   readonly status: InvestigationStatus;
+  readonly statusLabel?: InvestigationStatusLabel | null;
   readonly classification?: InvestigationClassification | null;
   readonly driver?: InvestigationDriver | null;
   readonly confidence?: number | null;
   readonly createdAt: string;
   readonly completedAt?: string | null;
+};
+
+/** A watchlist entry plus the dashboard context PRD §6 Flow A asks for. */
+export type WatchlistDashboardItem = {
+  readonly ticker: string;
+  readonly createdAt: string;
+  readonly companyName: string | null;
+  readonly lastClose: number | null;
+  readonly lastCloseDate: string | null;
+  readonly lastInvestigation: {
+    readonly id: string;
+    readonly status: InvestigationStatus;
+    readonly statusLabel: InvestigationStatusLabel | null;
+    readonly createdAt: string;
+    readonly completedAt: string | null;
+  } | null;
 };
 
 export type ConversationRecord = {
@@ -71,6 +107,9 @@ export type InvestigationStatePatch = {
   readonly status?: InvestigationStatus;
   readonly signalsJson?: unknown;
   readonly planJson?: InvestigationPlan | null;
+  readonly companyName?: string | null;
+  readonly subSector?: string | null;
+  readonly asOfDate?: string;
 };
 
 export type InvestigationCompletion = {
@@ -85,7 +124,7 @@ export type InvestigationCompletion = {
 export interface InvestigationStore {
   create(input: InvestigationCreateInput): Promise<{ id: string }>;
   findPrevious(userId: string, ticker: string): Promise<PreviousInvestigation | null>;
-  list(userId: string): Promise<InvestigationSummary[]>;
+  list(userId: string, page?: { limit: number; offset: number }): Promise<InvestigationSummary[]>;
   getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null>;
   updateFromState(investigationId: string, patch: InvestigationStatePatch): Promise<void>;
   appendEvidence(investigationId: string, items: readonly EvidenceItem[]): Promise<void>;
@@ -114,6 +153,8 @@ export class PostgresInvestigationStore implements InvestigationStore {
         ticker: input.ticker,
         question: input.question,
         previousInvestigationId: input.previousInvestigationId,
+        companyName: input.companyName,
+        subSector: input.subSector ?? undefined,
       })
       .returning({ id: investigations.id });
     if (!row) throw new Error("Failed to create investigation");
@@ -162,12 +203,17 @@ export class PostgresInvestigationStore implements InvestigationStore {
     };
   }
 
-  async list(userId: string): Promise<InvestigationSummary[]> {
+  async list(
+    userId: string,
+    page: { limit: number; offset: number } = { limit: 50, offset: 0 },
+  ): Promise<InvestigationSummary[]> {
     const rows = await this.db
       .select({
         id: investigations.id,
         ticker: investigations.ticker,
+        companyName: investigations.companyName,
         status: investigations.status,
+        statusLabel: investigations.statusLabel,
         classification: investigations.classification,
         driver: investigations.driver,
         confidence: investigations.confidence,
@@ -176,12 +222,16 @@ export class PostgresInvestigationStore implements InvestigationStore {
       })
       .from(investigations)
       .where(eq(investigations.userId, userId))
-      .orderBy(desc(investigations.createdAt));
+      .orderBy(desc(investigations.createdAt))
+      .limit(page.limit)
+      .offset(page.offset);
 
     return rows.map((row) => ({
       id: row.id,
       ticker: row.ticker,
+      companyName: row.companyName ?? null,
       status: row.status,
+      statusLabel: row.statusLabel ?? null,
       classification: row.classification ?? null,
       driver: row.driver ?? null,
       confidence: row.confidence ?? null,
@@ -220,18 +270,26 @@ export class PostgresInvestigationStore implements InvestigationStore {
       id: row.id,
       userId: row.userId,
       ticker: row.ticker,
+      companyName: row.companyName ?? null,
+      subSector: row.subSector ?? null,
       question: row.question,
       status: row.status,
+      statusLabel: row.statusLabel ?? null,
       classification: row.classification,
       driver: row.driver,
       confidence: row.confidence,
+      confidenceReason: row.confidenceReason ?? null,
       signals: row.signalsJson,
       plan: row.planJson as InvestigationPlan | null,
       evidenceSummary: row.evidenceSummary,
+      evidenceSummaryJson:
+        (row.evidenceSummaryJson as InvestigationEvidenceSummary[] | null) ?? null,
+      disclaimer: row.disclaimer ?? null,
       whatChanged: row.whatChanged,
       whyItMatters: row.whyItMatters,
       explanation: row.explanation,
       whatToMonitor: row.whatToMonitor,
+      whatToMonitorJson: (row.whatToMonitorJson as string[] | null) ?? null,
       changesSincePrevious: row.changesSincePrevious,
       previousInvestigationId: row.previousInvestigationId,
       errorMessage: row.errorMessage,
@@ -337,14 +395,19 @@ export class PostgresInvestigationStore implements InvestigationStore {
         status: "completed",
         classification: result.classification,
         driver: result.driver,
+        statusLabel: result.status,
         confidence: result.confidence,
+        confidenceReason: result.confidenceReason,
         signalsJson: completion.signals,
         planJson: completion.plan,
         evidenceSummary: completion.evidenceSummary,
+        evidenceSummaryJson: result.evidenceSummary,
+        disclaimer: result.disclaimer,
         whatChanged: result.whatChanged,
         whyItMatters: result.whyItMatters,
         explanation: result.explanation,
-        whatToMonitor: result.whatToMonitor,
+        whatToMonitor: result.whatToMonitor.join(" "),
+        whatToMonitorJson: result.whatToMonitor,
         changesSincePrevious: result.changesSincePrevious,
         comparisonJson: completion.comparison,
         asOfDate: completion.asOfDate,

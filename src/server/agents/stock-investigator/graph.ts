@@ -2,6 +2,7 @@ import { END, START, StateGraph } from "@langchain/langgraph";
 import { randomUUID } from "node:crypto";
 import type { DeterministicSignals } from "../../analysis/signals.ts";
 import type { ToolContext, ToolDefinition } from "../../tools/index.ts";
+import { applyRoutingPolicy, routeInvestigation, type InvestigationRoute } from "./routing.ts";
 import {
   BaselineContextSchema,
   EvidenceItemSchema,
@@ -23,6 +24,59 @@ export type BaselineCollection = {
   readonly toolCalls: readonly ToolCallRecord[];
 };
 
+/**
+ * Thrown when Sectors cannot supply the data an investigation is built on.
+ *
+ * PRD §25: when core stock/market data fails the investigation must fail with a
+ * user-readable error instead of "completing" with empty signals.
+ */
+export class BaselineUnavailableError extends Error {
+  readonly reason: "unknown_ticker" | "no_price_data" | "no_market_data";
+
+  constructor(reason: BaselineUnavailableError["reason"], message: string) {
+    super(message);
+    this.name = "BaselineUnavailableError";
+    this.reason = reason;
+  }
+}
+
+/** Fails fast when the baseline cannot support deterministic signals. */
+export function assertBaselineUsable(collection: BaselineCollection, ticker: string): void {
+  const priceFailed = collection.toolCalls.find(
+    (call) => call.toolName === "get_price_context" && call.status === "failed",
+  );
+  if (priceFailed) {
+    throw new BaselineUnavailableError(
+      "no_price_data",
+      `Could not collect price data for ${ticker}: ${priceFailed.errorMessage ?? "Sectors API unavailable"}.`,
+    );
+  }
+
+  const marketFailed = collection.toolCalls.find(
+    (call) => call.toolName === "get_market_context" && call.status === "failed",
+  );
+  if (marketFailed) {
+    throw new BaselineUnavailableError(
+      "no_market_data",
+      `Could not collect market benchmark data for ${ticker}: ${marketFailed.errorMessage ?? "Sectors API unavailable"}.`,
+    );
+  }
+
+  if (collection.baseline.price.length < 2) {
+    throw new BaselineUnavailableError(
+      "no_price_data",
+      `Sectors returned too little price history for ${ticker} to calculate a move.`,
+    );
+  }
+
+  if (collection.baseline.market.length < 2) {
+    throw new BaselineUnavailableError(
+      "no_market_data",
+      `Sectors returned too little IHSG history to compare ${ticker} against the market.`,
+    );
+  }
+}
+
 export type PlannerInput = {
   readonly ticker: string;
   readonly question?: string;
@@ -30,6 +84,8 @@ export type PlannerInput = {
   readonly signals: DeterministicSignals;
   readonly previousInvestigation: PreviousInvestigation | null;
   readonly evidence: readonly EvidenceItem[];
+  /** Branch selected by the deterministic signals before any model call. */
+  readonly route: InvestigationRoute;
 };
 
 export type SynthesizerInput = PlannerInput & {
@@ -53,6 +109,7 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
       { ticker: state.ticker, question: state.question },
       createToolContext(state),
     );
+    assertBaselineUsable(collection, state.ticker);
     return {
       status: "collecting_baseline" as const,
       baseline: BaselineContextSchema.parse(collection.baseline),
@@ -63,15 +120,17 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
 
   const calculateSignals = async (state: StockInvestigatorStateType) => {
     if (!state.baseline) throw new Error("Baseline data is required before signal calculation");
+    const signals = dependencies.calculateSignals(state.baseline);
     return {
       status: "calculating_signals" as const,
-      signals: dependencies.calculateSignals(state.baseline),
+      signals,
+      route: routeInvestigation(signals),
     };
   };
 
   const planInvestigation = async (state: StockInvestigatorStateType) => {
-    if (!state.baseline || !state.signals) {
-      throw new Error("Baseline and deterministic signals are required before planning");
+    if (!state.baseline || !state.signals || !state.route) {
+      throw new Error("Baseline, deterministic signals, and a route are required before planning");
     }
     const plan = await dependencies.planner({
       ticker: state.ticker,
@@ -80,10 +139,19 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
       signals: state.signals,
       previousInvestigation: state.previousInvestigation,
       evidence: state.evidence,
+      route: state.route,
     });
+    const parsedPlan = InvestigationPlanSchema.parse(plan);
+    const { allowed, blocked } = applyRoutingPolicy(parsedPlan, state.route);
     return {
       status: "planning" as const,
-      plan: InvestigationPlanSchema.parse(plan),
+      plan: InvestigationPlanSchema.parse({ hypotheses: parsedPlan.hypotheses, steps: allowed }),
+      blockedSteps: blocked.map((step) => ({
+        id: step.id,
+        intent: step.intent,
+        tool: step.tool,
+        input: step.input,
+      })),
     };
   };
 
@@ -94,6 +162,18 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
     );
     const evidence: EvidenceItem[] = [];
     const toolCalls: ToolCallRecord[] = [];
+
+    for (const step of state.blockedSteps ?? []) {
+      toolCalls.push(
+        createToolCall({
+          step,
+          status: "skipped",
+          startedAt: new Date(),
+          errorCode: "ROUTING_BLOCKED",
+          errorMessage: `The ${state.route?.branch ?? "selected"} branch did not allow this tool for this move.`,
+        }),
+      );
+    }
 
     for (const step of state.plan.steps) {
       const startedAt = new Date();
@@ -158,7 +238,7 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
   };
 
   const synthesize = async (state: StockInvestigatorStateType) => {
-    if (!state.baseline || !state.signals || !state.plan) {
+    if (!state.baseline || !state.signals || !state.plan || !state.route) {
       throw new Error("Investigation context is incomplete before synthesis");
     }
     const result = await dependencies.synthesizer({
@@ -169,6 +249,7 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
       previousInvestigation: state.previousInvestigation,
       evidence: state.evidence,
       plan: state.plan,
+      route: state.route,
     });
     return {
       status: "synthesizing" as const,
@@ -198,8 +279,18 @@ export function buildStockInvestigatorGraph(dependencies: StockInvestigatorDepen
     .compile();
 }
 
+/**
+ * Every tool call gets its own deadline. Without one, a hung Sectors request
+ * stalls the whole investigation, because nothing else bounds tool latency.
+ */
+const TOOL_TIMEOUT_MS = Number(process.env.TOOL_TIMEOUT_MS ?? 20_000);
+
 function createToolContext(state: StockInvestigatorStateType): ToolContext {
-  return { ticker: state.ticker, investigationId: state.investigationId };
+  return {
+    ticker: state.ticker,
+    investigationId: state.investigationId,
+    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  };
 }
 
 function createToolCall(input: {

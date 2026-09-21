@@ -1,10 +1,12 @@
 import { Annotation } from "@langchain/langgraph";
 import type { InvestigationStatus } from "../../../shared/schemas/investigation.ts";
 import type { DeterministicSignals } from "../../analysis/signals.ts";
+import type { InvestigationRoute } from "./routing.ts";
 import type {
   BaselineContext,
   EvidenceItem,
   InvestigationPlan,
+  InvestigationPlanStep,
   InvestigationResult,
   PreviousInvestigation,
   ToolCallRecord,
@@ -33,6 +35,14 @@ export const StockInvestigatorState = Annotation.Root({
   signals: Annotation<DeterministicSignals | undefined>({
     reducer: (_current, update) => update,
     default: () => undefined,
+  }),
+  route: Annotation<InvestigationRoute | undefined>({
+    reducer: (_current, update) => update,
+    default: () => undefined,
+  }),
+  blockedSteps: Annotation<InvestigationPlanStep[]>({
+    reducer: (_current, update) => update,
+    default: () => [],
   }),
   plan: Annotation<InvestigationPlan | undefined>({
     reducer: (_current, update) => update,

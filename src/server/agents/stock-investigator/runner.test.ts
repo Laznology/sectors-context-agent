@@ -23,22 +23,37 @@ describe("runStockInvestigation", () => {
     };
     const dependencies: StockInvestigatorDependencies = {
       collectBaseline: async () => ({
-        baseline: { price: [], market: [] },
+        baseline: {
+          price: [
+            { date: "2026-09-15", close: 100, volume: 100 },
+            { date: "2026-09-16", close: 110, volume: 180 },
+          ],
+          market: [
+            { date: "2026-09-15", close: 100 },
+            { date: "2026-09-16", close: 105 },
+          ],
+        },
         evidence: [],
         toolCalls: [],
       }),
       calculateSignals,
-      planner: async () => ({ steps: [] }),
+      planner: async () => ({ hypotheses: [], steps: [] }),
       tools: [],
       synthesizer: async () => ({
         driver: "UNCLEAR",
         classification: "inconclusive",
+        status: "unclear",
         confidence: 0.2,
+        confidenceReason: "Evidence is missing or conflicting.",
         whatChanged: "No movement data was available.",
         whyItMatters: "The available evidence is insufficient.",
         explanation: "No conclusion can be drawn from missing data.",
-        whatToMonitor: "Collect a new baseline.",
+        whatToMonitor: ["Collect a new baseline.", "Check that Sectors returned daily data."],
+        evidenceSummary: [
+          { label: "Price/Volume", finding: "No data available", importance: "low" },
+        ],
         changesSincePrevious: null,
+        disclaimer: "This analysis is informational and does not constitute investment advice.",
       }),
     };
     const events: InvestigationEvent[] = [];
@@ -59,6 +74,7 @@ describe("runStockInvestigation", () => {
       "started",
       "step",
       "step",
+      "plan",
       "step",
       "step",
       "step",
@@ -73,6 +89,13 @@ describe("runStockInvestigation", () => {
       "synthesize",
       "finalize",
     ]);
+    expect(
+      events.filter((event) => event.type === "step").every((event) => event.label.length > 0),
+    ).toBe(true);
+    expect(events.find((event) => event.type === "plan")).toMatchObject({
+      branch: "full",
+      hypotheses: [],
+    });
     expect(updateFromState).toHaveBeenCalledTimes(6);
     expect(complete).toHaveBeenCalledOnce();
     expect(fail).not.toHaveBeenCalled();
@@ -97,7 +120,7 @@ describe("runStockInvestigation", () => {
         throw new Error("Sectors unavailable");
       },
       calculateSignals,
-      planner: async () => ({ steps: [] }),
+      planner: async () => ({ hypotheses: [], steps: [] }),
       tools: [],
       synthesizer: async () => {
         throw new Error("Synthesis should not run");

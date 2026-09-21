@@ -1,7 +1,11 @@
-import "dotenv/config";
 import { serve } from "@hono/node-server";
+import "dotenv/config";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { ZodError } from "zod";
 import { apiRoutes } from "./api/index.ts";
+import { closeDb } from "./db/index.ts";
 
 /**
  * Server entry point.
@@ -11,10 +15,76 @@ import { apiRoutes } from "./api/index.ts";
  */
 export const app = new Hono();
 
+app.onError((error, context) => {
+  if (error instanceof HTTPException) {
+    return context.json({ error: error.message }, error.status);
+  }
+
+  if (error instanceof ZodError) {
+    return context.json(
+      { error: "Invalid request", details: error.flatten() },
+      400 as ContentfulStatusCode,
+    );
+  }
+
+  console.error(
+    JSON.stringify({
+      scope: "request",
+      at: new Date().toISOString(),
+      method: context.req.method,
+      path: context.req.path,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    }),
+  );
+
+  return context.json({ error: "Internal server error" }, 500);
+});
+
+app.notFound((context) =>
+  context.json({ error: `No route for ${context.req.method} ${context.req.path}` }, 404),
+);
+
+const MAX_BODY_BYTES = 64 * 1024;
+app.use("*", async (context, next) => {
+  const length = Number(context.req.header("content-length") ?? 0);
+  if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
+    return context.json({ error: "Request body too large" }, 413);
+  }
+  await next();
+});
+
 app.route("/api", apiRoutes);
 
 const port = Number(process.env.PORT ?? 3001);
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`[sector-context-agent] API listening on http://localhost:${info.port}`);
 });
+
+/**
+ * Stops accepting connections, then closes the database pool so in-flight
+ * queries are not killed mid-write. A second signal exits immediately.
+ */
+let shuttingDown = false;
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    if (shuttingDown) {
+      console.log(`[sector-context-agent] ${signal} received again, exiting`);
+      process.exit(1);
+    }
+    shuttingDown = true;
+    console.log(`[sector-context-agent] ${signal} received, shutting down`);
+
+    server.close(async () => {
+      await closeDb();
+      console.log("[sector-context-agent] shutdown complete");
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      console.error("[sector-context-agent] shutdown timed out, forcing exit");
+      process.exit(1);
+    }, 10_000).unref();
+  });
+}

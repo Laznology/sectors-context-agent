@@ -4,6 +4,7 @@ import {
   InvestigationConfidenceSchema,
   InvestigationDriverSchema,
   InvestigationEvidenceTypeSchema,
+  InvestigationStatusLabelSchema,
   InvestigationToolCallStatusSchema,
 } from "../../../shared/schemas/investigation.ts";
 import type { DeterministicSignals, MarketPoint, PricePoint } from "../../analysis/signals.ts";
@@ -19,10 +20,25 @@ export const MarketPointSchema = z.object({
   close: z.number(),
 });
 
+export const CompanyContextSchema = z.object({
+  ticker: z.string().min(1),
+  companyName: z.string().min(1),
+  sector: z.string().nullable(),
+  subSector: z.string().nullable(),
+  subSectorSlug: z.string().nullable(),
+  industry: z.string().nullable(),
+  marketCap: z.number().nullable(),
+  lastClosePrice: z.number().nullable(),
+  lastCloseDate: z.string().nullable(),
+  indices: z.array(z.string()),
+});
+
+export type CompanyContext = z.infer<typeof CompanyContextSchema>;
+
 export const BaselineContextSchema = z.object({
   price: z.array(PricePointSchema),
   market: z.array(MarketPointSchema),
-  company: z.unknown().optional(),
+  company: CompanyContextSchema.optional(),
 });
 
 export type BaselineContext = z.infer<typeof BaselineContextSchema>;
@@ -69,6 +85,8 @@ export const InvestigationPlanStepSchema = z.object({
 export type InvestigationPlanStep = z.infer<typeof InvestigationPlanStepSchema>;
 
 export const InvestigationPlanSchema = z.object({
+  /** Drivers the planner is testing, using the PRD §15 explanatory vocabulary. */
+  hypotheses: z.array(InvestigationDriverSchema).default([]),
   steps: z.array(InvestigationPlanStepSchema),
 });
 
@@ -93,12 +111,28 @@ export type ToolCallRecord = z.infer<typeof ToolCallRecordSchema>;
 export const InvestigationResultSchema = z.object({
   driver: InvestigationDriverSchema,
   classification: InvestigationClassificationSchema,
+  /** Product-facing attention state derived from the evidence. */
+  status: InvestigationStatusLabelSchema,
+  /** Normalised 0..1 confidence of the classification. */
   confidence: InvestigationConfidenceSchema,
+  /** Why the model chose this confidence level. */
+  confidenceReason: z.string().min(1),
   whatChanged: z.string().min(1),
   whyItMatters: z.string().min(1),
   explanation: z.string().min(1),
-  whatToMonitor: z.string().min(1),
+  /** Two to three concrete items the user should watch next. */
+  whatToMonitor: z.array(z.string().min(1)).min(1).max(5),
+  /** Per-category findings shown as evidence cards. */
+  evidenceSummary: z.array(
+    z.object({
+      label: z.string().min(1),
+      finding: z.string().min(1),
+      importance: z.enum(["high", "medium", "low"]),
+    }),
+  ),
   changesSincePrevious: z.string().nullable(),
+  /** Always shown with the result; the product never gives investment advice. */
+  disclaimer: z.string().min(1),
 });
 
 export type InvestigationResult = z.infer<typeof InvestigationResultSchema>;
