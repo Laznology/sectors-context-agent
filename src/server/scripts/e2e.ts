@@ -60,6 +60,24 @@ async function main(): Promise<void> {
   const { id } = (await created.json()) as { id: string };
   console.log(`create: 202 ${id}`);
 
+  const unknownTicker = await call("/api/investigations", {
+    method: "POST",
+    body: JSON.stringify({ ticker: "ZZZZ" }),
+  });
+  if (unknownTicker.status !== 404) {
+    fail(`unknown ticker should be rejected with 404, got ${unknownTicker.status}`);
+  }
+  console.log(`ticker validation: 404 ${await unknownTicker.text()}`);
+
+  const unknownWatchlist = await call("/api/watchlist", {
+    method: "POST",
+    body: JSON.stringify({ ticker: "ZZZZ" }),
+  });
+  if (unknownWatchlist.status !== 404) {
+    fail(`unknown watchlist ticker should be rejected with 404, got ${unknownWatchlist.status}`);
+  }
+  console.log("watchlist ticker validation: 404");
+
   const events = await call(`/api/investigations/${id}/events`);
   const reader = events.body?.getReader();
   if (!reader) fail("events stream has no body");
@@ -115,6 +133,27 @@ async function main(): Promise<void> {
   const removed = await call("/api/watchlist/BBCA", { method: "DELETE" });
   if (removed.status !== 204) fail(`watchlist remove failed: ${removed.status}`);
   console.log(`watchlist remove: ${removed.status}`);
+
+  const path = await call(`/api/investigations/${id}/path`);
+  if (!path.ok) fail(`investigation path failed: ${path.status}`);
+  const pathBody = (await path.json()) as {
+    steps: Array<{ tool: string; status: string }>;
+    evidenceCategories: string[];
+  };
+  if (pathBody.steps.length === 0) fail("investigation path has no steps");
+  if (pathBody.evidenceCategories.length === 0) fail("investigation path has no evidence");
+  console.log(
+    `path: ${path.status} ${pathBody.steps.length} steps, evidence: ${pathBody.evidenceCategories.join(",")}`,
+  );
+
+  const dashboard = await call("/api/watchlist?view=dashboard");
+  if (!dashboard.ok) fail(`dashboard view failed: ${dashboard.status}`);
+  const dashboardBody = (await dashboard.json()) as {
+    watchlist: Array<{ ticker: string; companyName: string | null }>;
+  };
+  console.log(
+    `dashboard: ${dashboard.status} ${dashboardBody.watchlist.map((item) => `${item.ticker}=${item.companyName ?? "?"}`).join(",")}`,
+  );
 
   console.log("e2e ok");
 }
