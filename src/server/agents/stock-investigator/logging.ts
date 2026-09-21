@@ -40,7 +40,6 @@ const startedAtByInvestigation = new Map<string, number>();
 
 export function logInvestigation(event: InvestigationLogEvent): void {
   if (process.env.INVESTIGATION_LOG === "off") return;
-  // Test output stays readable; the behaviour is asserted through the events instead.
   if (process.env.NODE_ENV === "test" || process.env.VITEST === "true") return;
 
   const now = Date.now();

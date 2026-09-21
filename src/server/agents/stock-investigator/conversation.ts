@@ -45,8 +45,6 @@ export async function runInvestigationConversation(
 ): Promise<InvestigationConversationResult> {
   await store.appendConversation(input.investigation.id, "user", input.message);
 
-  // PRD §19 / INTENT: MCP is an optional extension, so a follow-up still works
-  // through the application's own Sectors REST tools when MCP is unavailable.
   const { tools, close } = await resolveConversationTools(input.investigation);
 
   try {
@@ -127,8 +125,6 @@ async function resolveConversationTools(
 function createRestConversationTools(investigation: InvestigationDetail): ToolSet {
   const ticker = investigation.ticker ?? "";
   const tools: ToolSet = {};
-  // Widened to the base type: the tuple's per-tool input types would otherwise
-  // intersect into an impossible signature at this call site.
   const definitions: readonly ToolDefinition[] = sectorsInvestigationTools;
   for (const definition of definitions) {
     tools[definition.name] = tool({

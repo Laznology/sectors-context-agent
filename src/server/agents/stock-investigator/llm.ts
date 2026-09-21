@@ -64,7 +64,6 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
     ].join("\n"),
   });
   const parsed = InvestigationResultSchema.parse(object);
-  // ponytail: disclaimer is a product guarantee, so the server owns it instead of trusting the model.
   return { ...parsed, disclaimer: INVESTIGATION_DISCLAIMER };
 }
 

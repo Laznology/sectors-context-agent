@@ -35,8 +35,6 @@ describe("calculateSignals", () => {
   });
 
   it("averages volume over the configured window, excluding the latest day", () => {
-    // 25 trading days. The last is the day under investigation, and the 20-day
-    // window covers indices 4..23, so the four low-volume days fall outside it.
     const price = Array.from({ length: 25 }, (_, index) => ({
       date: `2026-08-${String(index + 1).padStart(2, "0")}`,
       close: 100,
@@ -52,7 +50,6 @@ describe("calculateSignals", () => {
       },
     );
 
-    // Only the 20 most recent prior days count, and all of them are 100.
     expect(signals.averageVolume).toBe(100);
     expect(signals.volumeRatio).toBe(1);
   });

@@ -60,7 +60,6 @@ export class PostgresWatchlistStore implements WatchlistStore {
 
     if (entries.length === 0) return [];
 
-    // ponytail: DISTINCT ON gives the latest investigation per ticker in one query; revisit if the list grows.
     const latest = await this.db
       .selectDistinctOn([investigations.ticker], {
         ticker: investigations.ticker,

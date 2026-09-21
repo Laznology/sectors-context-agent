@@ -154,8 +154,6 @@ async function collectBaselineFromSectors(
 function recentDateRange(): { start: string; end: string } {
   const end = new Date();
   const start = new Date(end);
-  // PRD §9 asks for roughly 20–30 trading days. 45 calendar days covers 30
-  // trading days plus IDX holidays, and leaves slack for the 20-day volume window.
   start.setUTCDate(start.getUTCDate() - 45);
   return { start: toDate(start), end: toDate(end) };
 }

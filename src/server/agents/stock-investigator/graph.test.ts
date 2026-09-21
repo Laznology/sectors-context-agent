@@ -84,7 +84,6 @@ describe("stock investigator graph", () => {
 
     expect(output.status).toBe("completed");
     expect(output.signals?.relativeReturn).toBeCloseTo(0.05);
-    // The unusual move selects the full branch, so both planned tools are allowed.
     expect(output.route?.branch).toBe("full");
     expect(calledTools).toEqual(["get_foreign_flow", "get_broker_activity"]);
     expect(output.toolCalls.map((call) => [call.toolName, call.status])).toEqual([
@@ -99,7 +98,6 @@ describe("stock investigator graph", () => {
     const calledTools: string[] = [];
     const dependencies: StockInvestigatorDependencies = {
       collectBaseline: async () => ({ baseline, evidence: [], toolCalls: [] }),
-      // A flat move: no unusual return and no unusual volume.
       calculateSignals: () =>
         calculateSignals(
           { price: baseline.price, market: baseline.market },
@@ -127,7 +125,6 @@ describe("stock investigator graph", () => {
     const output = await graph.invoke({ ticker: "ANTM" });
 
     expect(output.route?.branch).toBe("limited");
-    // Only the sector sanity check survives; the flow deep dive is recorded as skipped.
     expect(calledTools).toEqual(["get_sector_context"]);
     expect(output.toolCalls.map((call) => [call.toolName, call.status])).toEqual([
       ["get_foreign_flow", "skipped"],
