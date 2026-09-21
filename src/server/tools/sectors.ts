@@ -209,11 +209,14 @@ export const getForeignFlow = defineTool({
 
 export const getBrokerActivity = defineTool({
   name: "get_broker_activity",
-  description: "Collect top broker buyers and sellers for the investigated ticker.",
-  inputSchema: DateRangeInputSchema,
-  execute: async (input: DateRangeInput, context): Promise<ToolExecutionResult> => {
+  description:
+    "Collect top broker buyers and sellers for the investigated ticker. Use origin 'all' unless the question is specifically about foreign or domestic brokers.",
+  inputSchema: z.object({
+    origin: z.enum(["all", "foreign", "domestic"]).optional(),
+  }),
+  execute: async ({ origin = "all" }, context): Promise<ToolExecutionResult> => {
     const activity = await sectorsFetch(`/broker-summary/${context.ticker}/top/`, {
-      query: { ...dateQuery(input), origin: "local", cohort: "all", n_brokers: 5 },
+      query: { origin, cohort: "all", n_brokers: 5 },
       signal: context.signal,
       schema: BrokerResponseSchema,
     });
@@ -223,7 +226,7 @@ export const getBrokerActivity = defineTool({
         createEvidence(
           "broker",
           `sectors:broker-summary:${context.ticker}`,
-          `Collected broker activity for ${context.ticker}.`,
+          `Collected ${origin} broker activity for ${context.ticker}.`,
           activity,
         ),
       ],

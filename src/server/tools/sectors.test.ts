@@ -1,5 +1,38 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { getPriceContext } from "./sectors.ts";
+import { getBrokerActivity, getPriceContext, sectorsInvestigationTools } from "./sectors.ts";
+
+/**
+ * Runs one tool against a stubbed `fetch` and returns every request URL it
+ * built, in order. Sectors rejects unknown query values with a 400, so
+ * asserting the exact URLs is what keeps these wrappers honest.
+ */
+async function captureRequestUrls(
+  execute: () => Promise<unknown>,
+  payload: unknown = {},
+): Promise<string[]> {
+  const previousKey = process.env.SECTORS_API_KEY;
+  const requestUrls: string[] = [];
+  process.env.SECTORS_API_KEY = "test-key";
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: unknown) => {
+      requestUrls.push(String(input));
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }),
+  );
+
+  try {
+    await execute();
+    return requestUrls;
+  } finally {
+    vi.unstubAllGlobals();
+    if (previousKey === undefined) delete process.env.SECTORS_API_KEY;
+    else process.env.SECTORS_API_KEY = previousKey;
+  }
+}
 
 describe("Sectors semantic tools", () => {
   it("builds the fixed daily endpoint and returns traceable evidence", async () => {
@@ -36,5 +69,51 @@ describe("Sectors semantic tools", () => {
       if (previousKey === undefined) delete process.env.SECTORS_API_KEY;
       else process.env.SECTORS_API_KEY = previousKey;
     }
+  });
+
+  it("sends broker-summary an origin Sectors accepts", async () => {
+    // Regression: the tool used to send origin=local, which Sectors rejects with
+    // 400 "origin must be 'foreign', 'domestic', or 'all'" — so every
+    // investigation silently recorded a failed broker step.
+    const [requestUrl] = await captureRequestUrls(() =>
+      getBrokerActivity.execute({}, { ticker: "ANTM" }),
+    );
+
+    expect(requestUrl).toContain("/v2/broker-summary/ANTM/top/");
+    expect(requestUrl).toContain("origin=all");
+    expect(requestUrl).not.toContain("origin=local");
+    expect(requestUrl).toContain("cohort=all");
+    expect(requestUrl).toContain("n_brokers=5");
+  });
+
+  it("accepts only the origin values Sectors documents", () => {
+    const broker = sectorsInvestigationTools.find((tool) => tool.name === "get_broker_activity");
+    if (!broker) throw new Error("get_broker_activity is not registered");
+
+    expect(broker.inputSchema.safeParse({ origin: "domestic" }).success).toBe(true);
+    expect(broker.inputSchema.safeParse({ origin: "foreign" }).success).toBe(true);
+    expect(broker.inputSchema.safeParse({ origin: "local" }).success).toBe(false);
+  });
+
+  it("lets get_sector_context run without the planner naming a subsector", async () => {
+    const requestUrls = await captureRequestUrls(
+      () => {
+        const sector = sectorsInvestigationTools.find((tool) => tool.name === "get_sector_context");
+        if (!sector) throw new Error("get_sector_context is not registered");
+        // No `sub_sector` supplied: the tool must resolve it from company/report.
+        return sector.execute({}, { ticker: "ANTM" });
+      },
+      {
+        symbol: "ANTM.JK",
+        company_name: "Aneka Tambang Tbk.",
+        overview: { sector: "Basic Materials", sub_sector: "Basic Materials" },
+      },
+    );
+
+    expect(requestUrls[0]).toContain("/v2/company/report/ANTM/");
+    // The display name "Basic Materials" must become the slug the subsector
+    // endpoint accepts, otherwise Sectors answers 404.
+    expect(requestUrls[1]).toContain("/v2/subsector/report/basic-materials/");
+    expect(requestUrls[1]).not.toContain("Basic%20Materials");
   });
 });
