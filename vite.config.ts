@@ -17,12 +17,10 @@ export default defineConfig({
     plugins: ["react", "typescript", "oxc"],
     rules: {
       "react/rules-of-hooks": "error",
-      "react/only-export-components": [
-        "warn",
-        {
-          allowConstantExport: true,
-        },
-      ],
+      // TanStack Router requires each route file to export its route object
+      // alongside the page components, which this rule reads as a Fast Refresh
+      // violation. The React plugin handles HMR for these files correctly.
+      "react/only-export-components": "off",
       "vite-plus/prefer-vite-plus-imports": "error",
     },
     options: {
