@@ -72,9 +72,6 @@ describe("Sectors semantic tools", () => {
   });
 
   it("sends broker-summary an origin Sectors accepts", async () => {
-    // Regression: the tool used to send origin=local, which Sectors rejects with
-    // 400 "origin must be 'foreign', 'domestic', or 'all'" — so every
-    // investigation silently recorded a failed broker step.
     const [requestUrl] = await captureRequestUrls(() =>
       getBrokerActivity.execute({}, { ticker: "ANTM" }),
     );
@@ -100,7 +97,6 @@ describe("Sectors semantic tools", () => {
       () => {
         const sector = sectorsInvestigationTools.find((tool) => tool.name === "get_sector_context");
         if (!sector) throw new Error("get_sector_context is not registered");
-        // No `sub_sector` supplied: the tool must resolve it from company/report.
         return sector.execute({}, { ticker: "ANTM" });
       },
       {
@@ -111,8 +107,6 @@ describe("Sectors semantic tools", () => {
     );
 
     expect(requestUrls[0]).toContain("/v2/company/report/ANTM/");
-    // The display name "Basic Materials" must become the slug the subsector
-    // endpoint accepts, otherwise Sectors answers 404.
     expect(requestUrls[1]).toContain("/v2/subsector/report/basic-materials/");
     expect(requestUrls[1]).not.toContain("Basic%20Materials");
   });

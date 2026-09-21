@@ -3,8 +3,6 @@ import { fetchCompanyOverview, subsectorSlug } from "./company.ts";
 
 describe("subsectorSlug", () => {
   it("converts Sectors display names into the slugs its report endpoint expects", () => {
-    // Verified against the live API: `overview.sub_sector` says "Food & Beverage"
-    // while `subsector/report/:slug` only accepts "food-beverage".
     expect(subsectorSlug("Food & Beverage")).toBe("food-beverage");
     expect(subsectorSlug("Basic Materials")).toBe("basic-materials");
     expect(subsectorSlug("Software & IT Services")).toBe("software-it-services");
