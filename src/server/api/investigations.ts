@@ -61,7 +61,6 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
 
     const userId = dependencies.resolveUserId(context);
     const { limit, offset } = pagination.data;
-    // ponytail: one extra row tells us whether more exist without a COUNT query.
     const rows = await dependencies.store.list(userId, { limit: limit + 1, offset });
     const hasMore = rows.length > limit;
     return context.json({
@@ -116,8 +115,6 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
       });
     } catch (error) {
       if (error instanceof TooManyRunsError) {
-        // The row exists but will never run, so mark it failed rather than
-        // leaving a "pending" investigation that nothing will ever pick up.
         await dependencies.store.fail(created.id, error.message);
         return context.json({ error: error.message }, 429);
       }
@@ -165,9 +162,6 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     const investigation = await dependencies.store.getDetail(userId, context.req.param("id"));
     if (!investigation) return context.json({ error: "Investigation not found" }, 404);
 
-    // A run is only in memory while it is active (plus a short retention window
-    // afterwards). For anything older, replay the persisted outcome so a page
-    // reload after completion still receives a terminal event.
     if (!dependencies.manager.has(investigation.id)) {
       return streamSSE(context, async (stream) => {
         await stream.writeSSE({
@@ -218,8 +212,6 @@ export function createInvestigationRoutes(dependencies: InvestigationRouteDepend
     return context.json(investigation);
   });
 
-  // PRD §27/§32: the investigation path is the auditable view of what the agent
-  // actually did. Derived from stored tool calls, so it needs no extra state.
   routes.get("/:id/path", async (context) => {
     const investigation = await dependencies.store.getDetail(
       dependencies.resolveUserId(context),
@@ -264,8 +256,6 @@ export class InvestigationRunManager {
   ) {
     this.execute = execute;
     this.maxConcurrentPerUser = options.maxConcurrentPerUser ?? 3;
-    // Kept briefly so a client that reconnects right after completion still
-    // receives the terminal event instead of "run is not available".
     this.finishedRetentionMs = options.finishedRetentionMs ?? 5 * 60_000;
   }
 
@@ -298,7 +288,6 @@ export class InvestigationRunManager {
           input.userId,
           Math.max(0, (this.runningByUser.get(input.userId) ?? 1) - 1),
         );
-        // The buffered events are only useful while a client may still attach.
         setTimeout(() => {
           const finished = this.runs.get(input.investigationId);
           if (finished?.done) this.runs.delete(input.investigationId);

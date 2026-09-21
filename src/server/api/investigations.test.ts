@@ -174,7 +174,6 @@ describe("investigation API", () => {
 
     const response = await app.request("http://localhost/?limit=2&offset=1");
 
-    // limit+1 is requested so the handler can detect a further page without COUNT.
     expect(list).toHaveBeenCalledWith("user-1", { limit: 3, offset: 1 });
     expect(await response.json()).toMatchObject({
       investigations: [{ id: "inv-3" }, { id: "inv-2" }],
@@ -213,7 +212,6 @@ describe("investigation API", () => {
   it("refuses to start more runs than the per-user cap and fails the row", async () => {
     const fail = vi.fn();
     const store: InvestigationStore = {
-      // Distinct ids: the cap is a separate check from duplicate-run detection.
       create: vi
         .fn()
         .mockResolvedValueOnce({ id: "inv-first" })
@@ -228,7 +226,6 @@ describe("investigation API", () => {
       complete: vi.fn(),
       fail,
     };
-    // A run that never settles, so the cap stays reached for the second request.
     const neverSettles = new Promise<never>(() => {});
     const manager = new InvestigationRunManager(() => neverSettles, {
       maxConcurrentPerUser: 1,
@@ -254,7 +251,6 @@ describe("investigation API", () => {
 
     expect(first.status).toBe(202);
     expect(second.status).toBe(429);
-    // The created row must not be left pending, because nothing will run it.
     expect(fail).toHaveBeenCalledWith("inv-capped", expect.stringContaining("Already running"));
   });
 

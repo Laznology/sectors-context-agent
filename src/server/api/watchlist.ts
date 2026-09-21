@@ -24,8 +24,6 @@ export function createWatchlistRoutes(dependencies: WatchlistRouteDependencies):
 
   routes.get("/", async (context) => {
     const userId = dependencies.resolveUserId(context);
-    // `?view=dashboard` returns the same list enriched with company name, last
-    // close, and last investigation so the dashboard needs one call, not N+1.
     if (context.req.query("view") === "dashboard") {
       return context.json({ watchlist: await dependencies.store.dashboard(userId) });
     }

@@ -16,8 +16,6 @@ import { closeDb } from "./db/index.ts";
 export const app = new Hono();
 
 app.onError((error, context) => {
-  // Expected, deliberate failures: 401 from `requireSession`, 404 from a bad
-  // route, and Zod failures at a boundary. These keep their own status.
   if (error instanceof HTTPException) {
     return context.json({ error: error.message }, error.status);
   }
@@ -29,8 +27,6 @@ app.onError((error, context) => {
     );
   }
 
-  // Anything else is a bug or an infrastructure failure. Log it with enough
-  // context to reproduce, but never leak the stack trace to the client.
   console.error(
     JSON.stringify({
       scope: "request",
@@ -49,8 +45,6 @@ app.notFound((context) =>
   context.json({ error: `No route for ${context.req.method} ${context.req.path}` }, 404),
 );
 
-// JSON bodies here are small (a ticker, a question, a chat message). Reject
-// oversized payloads before Hono buffers them into memory.
 const MAX_BODY_BYTES = 64 * 1024;
 app.use("*", async (context, next) => {
   const length = Number(context.req.header("content-length") ?? 0);
@@ -88,7 +82,6 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
       process.exit(0);
     });
 
-    // ponytail: hard deadline so a stuck connection cannot block exit forever.
     setTimeout(() => {
       console.error("[sector-context-agent] shutdown timed out, forcing exit");
       process.exit(1);
