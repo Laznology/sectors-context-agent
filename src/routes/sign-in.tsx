@@ -8,6 +8,8 @@ import { SessionGuard } from "@/lib/session";
 import { rootRoute } from "@/routes/__root";
 import { SignalReadout } from "@/components/signal-readout";
 
+import "@/index.css";
+
 export const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sign-in",
@@ -45,7 +47,7 @@ function SignInForm() {
   }
 
   return (
-    <div className="grid w-full gap-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+    <div className="auth-grid">
       <SignalReadout
         eyebrow="Sign in"
         title={
@@ -58,46 +60,52 @@ function SignInForm() {
         description="The agent gathers market, sector, flow, broker, news and filing evidence, then states the likely driver — with an explicit confidence you can audit."
       />
 
-      <section className="w-full max-w-sm lg:justify-self-end">
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+      <section className="auth-card">
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <Label htmlFor="email" className="auth-label">
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
               autoComplete="email"
+              placeholder="name@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
+
+          <div className="auth-field">
+            <Label htmlFor="password" className="auth-label">
+              Password
+            </Label>
             <Input
               id="password"
               type="password"
               autoComplete="current-password"
+              placeholder="••••••••"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
           </div>
+
           {error && (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-destructive text-xs font-medium" role="alert">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+
+          <Button type="submit" disabled={isSubmitting} className="w-full font-medium mt-2">
             {isSubmitting ? "Working…" : "Sign in"}
           </Button>
         </form>
 
-        <p className="text-muted-foreground mt-6 text-sm">
+        <p className="auth-footer-text">
           No account yet?{" "}
-          <Link
-            to="/sign-up"
-            className="text-signal-text underline underline-offset-4 hover:opacity-80"
-          >
+          <Link to="/sign-up" className="auth-link">
             Create one
           </Link>
         </p>

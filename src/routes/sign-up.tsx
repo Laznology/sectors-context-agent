@@ -8,6 +8,8 @@ import { SessionGuard } from "@/lib/session";
 import { rootRoute } from "@/routes/__root";
 import { SignalReadout } from "@/components/signal-readout";
 
+import "@/index.css";
+
 export const signUpRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sign-up",
@@ -46,7 +48,7 @@ function SignUpForm() {
   }
 
   return (
-    <div className="grid w-full gap-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+    <div className="auth-grid">
       <SignalReadout
         eyebrow="Create account"
         title={
@@ -59,58 +61,68 @@ function SignUpForm() {
         description="Keep a watchlist, run investigations on demand, and follow how a story develops between sessions — evidence stays attached to every conclusion."
       />
 
-      <section className="w-full max-w-sm lg:justify-self-end">
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="name">Name</Label>
+      <section className="auth-card">
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <Label htmlFor="name" className="auth-label">
+              Name
+            </Label>
             <Input
               id="name"
               autoComplete="name"
+              placeholder="Your full name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+
+          <div className="auth-field">
+            <Label htmlFor="email" className="auth-label">
+              Email
+            </Label>
             <Input
               id="email"
               type="email"
               autoComplete="email"
+              placeholder="name@example.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="password">Password</Label>
+
+          <div className="auth-field">
+            <Label htmlFor="password" className="auth-label">
+              Password
+            </Label>
             <Input
               id="password"
               type="password"
               autoComplete="new-password"
+              placeholder="••••••••"
               minLength={8}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
-            <p className="text-muted-foreground text-xs">At least 8 characters.</p>
+            <p className="text-muted-foreground text-[11px]">At least 8 characters.</p>
           </div>
+
           {error && (
-            <p className="text-destructive text-sm" role="alert">
+            <p className="text-destructive text-xs font-medium" role="alert">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={isSubmitting} className="w-full">
+
+          <Button type="submit" disabled={isSubmitting} className="w-full font-medium mt-2">
             {isSubmitting ? "Working…" : "Create account"}
           </Button>
         </form>
 
-        <p className="text-muted-foreground mt-6 text-sm">
+        <p className="auth-footer-text">
           Already registered?{" "}
-          <Link
-            to="/sign-in"
-            className="text-signal-text underline underline-offset-4 hover:opacity-80"
-          >
+          <Link to="/sign-in" className="auth-link">
             Sign in
           </Link>
         </p>
