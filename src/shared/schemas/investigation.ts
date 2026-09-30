@@ -59,6 +59,34 @@ export const InvestigationToolCallStatusSchema = z.enum([
   "skipped",
 ]);
 
+// src/shared/schemas/investigation.ts
+
+export type PipelineStatus =
+  | "pending"
+  | "collecting_baseline"
+  | "calculating_signals"
+  | "planning"
+  | "investigating"
+  | "synthesizing"
+  | "completed"
+  | "failed";
+
+export interface InvestigationToolCall {
+  toolName: string;
+  reason: string;
+  timestamp: string;
+}
+
+export interface InvestigationProgressEvent {
+  status: PipelineStatus;
+  stepIndex: number;
+  totalSteps: number;
+  currentTool?: InvestigationToolCall;
+  error?: string;
+  message?: string;
+  completedAt?: string;
+}
+
 export type InvestigationToolCallStatus = z.infer<typeof InvestigationToolCallStatusSchema>;
 
 /** Roles allowed in a ticker-scoped follow-up conversation. */

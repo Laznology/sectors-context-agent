@@ -4,6 +4,9 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/newsreader";
 @import "@fontsource-variable/jetbrains-mono";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @custom-variant dark (&:is(.dark *));
 
@@ -184,5 +187,161 @@
   .tabular {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Layout Container */
+  .dashboard-wrapper {
+    @apply flex w-full flex-col gap-8 max-w-6xl mx-auto px-4 py-6 text-foreground;
+  }
+
+  /* Header Section */
+  .dashboard-header {
+    @apply flex items-end justify-between gap-6 border-b border-border/40 pb-6;
+  }
+
+  .dashboard-title {
+    @apply font-serif text-4xl tracking-tight font-bold text-foreground;
+  }
+
+  .dashboard-subtitle {
+    @apply text-muted-foreground text-sm mt-1 max-w-2xl leading-relaxed;
+  }
+
+  /* Form & Card Panel */
+  .dashboard-panel {
+    @apply rounded-xl border border-border/60 bg-card/80 p-6 shadow-sm backdrop-blur-sm transition-all;
+  }
+
+  .panel-title {
+    @apply text-lg font-semibold tracking-tight text-card-foreground;
+  }
+
+  .panel-subtitle {
+    @apply text-xs text-muted-foreground mt-0.5;
+  }
+
+  /* Watchlist Grid & Cards */
+  .watchlist-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5;
+  }
+
+  .ticker-card {
+    @apply flex flex-col justify-between rounded-xl border border-border/60 bg-card/90 p-5 
+           shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-200 gap-4;
+  }
+
+  .ticker-symbol {
+    @apply text-2xl font-bold tracking-tight text-foreground font-mono;
+  }
+
+  .ticker-company {
+    @apply text-xs text-muted-foreground line-clamp-1 font-medium;
+  }
+
+  .ticker-price {
+    @apply text-xl font-bold font-mono text-emerald-400 tracking-tight;
+  }
+
+  .ticker-meta-row {
+    @apply flex justify-between items-center text-xs py-1;
+  }
+
+  .ticker-meta-label {
+    @apply text-muted-foreground font-medium;
+  }
+
+  .ticker-meta-value {
+    @apply font-mono text-foreground font-medium;
+  }
+
+  /* Custom Status Badges */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold border;
+  }
+
+  .status-completed {
+    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/30;
+  }
+
+  .status-in-progress {
+    @apply bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse;
+  }
+
+  .status-pending {
+    @apply bg-amber-500/10 text-amber-400 border-amber-500/30;
+  }
+
+  .status-failed {
+    @apply bg-rose-500/10 text-rose-400 border-rose-500/30;
+  }
+
+  .status-none {
+    @apply bg-muted/40 text-muted-foreground border-border/40;
+  }
+
+  /* Empty State */
+  .watchlist-empty {
+    @apply rounded-xl border border-dashed border-border/60 bg-card/30 p-12 text-center text-muted-foreground text-sm space-y-2;
+  }
+
+  /* Auth Layout & Form Panel */
+  .auth-grid {
+    @apply grid w-full gap-12 lg:gap-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center py-8;
+  }
+
+  .auth-card {
+    @apply w-full max-w-sm lg:justify-self-end rounded-2xl border border-border/60 bg-panel/60 p-8 
+           shadow-xl backdrop-blur-md transition-all duration-200 hover:border-border;
+  }
+
+  .auth-form {
+    @apply flex flex-col gap-5;
+  }
+
+  .auth-field {
+    @apply flex flex-col gap-2;
+  }
+
+  .auth-label {
+    @apply text-xs font-medium tracking-wide text-foreground/90;
+  }
+
+  .auth-footer-text {
+    @apply text-muted-foreground mt-6 text-sm text-center lg:text-left;
+  }
+
+  .auth-link {
+    @apply text-signal-text font-medium underline underline-offset-4 hover:opacity-80 transition-opacity;
+  }
+
+  .auth-grid {
+    @apply grid w-full mx-auto max-w-5xl gap-12 lg:gap-16 py-12 px-6;
+  }
+
+  .auth-card {
+    @apply w-full max-w-sm mx-auto lg:justify-self-end rounded-2xl border border-border/60 bg-panel/60 p-8 
+           shadow-xl backdrop-blur-md transition-all duration-200 hover:border-border;
+  }
+
+  /* Status Badges & Cards */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold border;
+  }
+  .status-completed {
+    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/30;
+  }
+  .status-in-progress {
+    @apply bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse;
+  }
+  .status-pending {
+    @apply bg-amber-500/10 text-amber-400 border-amber-500/30;
+  }
+  .status-failed {
+    @apply bg-rose-500/10 text-rose-400 border-rose-500/30;
+  }
+  .status-none {
+    @apply bg-muted/40 text-muted-foreground border-border/40;
   }
 }
