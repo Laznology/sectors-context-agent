@@ -3,11 +3,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard, useSession } from "@/lib/session";
+import {
+  toWatchlistItems,
+  type WatchlistDashboardResponse,
+  type WatchlistItem,
+} from "@/lib/watchlist-view-model";
 import { rootRoute } from "@/routes/__root";
 import { createRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { LoaderCircle, Trash } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
-// Pastikan mengimpor index.css
 import "@/index.css";
 
 export const indexRoute = createRoute({
@@ -15,53 +20,6 @@ export const indexRoute = createRoute({
   path: "/",
   component: IndexPage,
 });
-
-interface WatchlistItem {
-  id: string;
-  ticker: string;
-  companyName: string;
-  latestClose: number;
-  investigationStatus: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "NONE";
-  lastInvestigatedAt: string | null;
-}
-
-const INITIAL_WATCHLIST: WatchlistItem[] = [
-  {
-    id: "1",
-    ticker: "AAPL",
-    companyName: "Apple Inc.",
-    latestClose: 224.23,
-    investigationStatus: "NONE",
-    lastInvestigatedAt: null,
-  },
-  {
-    id: "2",
-    ticker: "NVDA",
-    companyName: "NVIDIA Corporation",
-    latestClose: 116.0,
-    investigationStatus: "NONE",
-    lastInvestigatedAt: null,
-  },
-  {
-    id: "3",
-    ticker: "TSLA",
-    companyName: "Tesla, Inc.",
-    latestClose: 254.27,
-    investigationStatus: "NONE",
-    lastInvestigatedAt: null,
-  },
-];
-
-const MOCK_VALID_TICKERS: Record<string, string> = {
-  AAPL: "Apple Inc.",
-  NVDA: "NVIDIA Corporation",
-  TSLA: "Tesla, Inc.",
-  AMZN: "Amazon.com, Inc.",
-  MSFT: "Microsoft Corporation",
-  GOOGL: "Alphabet Inc.",
-  BBCA: "Bank Central Asia Tbk.",
-  BBRI: "Bank Rakyat Indonesia Tbk.",
-};
 
 function IndexPage() {
   return (
@@ -76,27 +34,47 @@ function AppShell() {
   const navigate = useNavigate();
   const name = session.data?.user.name ?? "";
 
-  // Persistence dengan LocalStorage
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(() => {
-    const saved = localStorage.getItem("watchlist_items");
-    return saved ? JSON.parse(saved) : INITIAL_WATCHLIST;
-  });
-
+  // The watchlist is server state; the API is the single source of truth.
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [inputTicker, setInputTicker] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
+
+  const loadWatchlist = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/watchlist?view=dashboard");
+      if (!res.ok) {
+        throw new Error(`Could not load your watchlist (HTTP ${res.status})`);
+      }
+      setWatchlist(toWatchlistItems((await res.json()) as WatchlistDashboardResponse));
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Could not load your watchlist.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("watchlist_items", JSON.stringify(watchlist));
-  }, [watchlist]);
+    void loadWatchlist();
+  }, [loadWatchlist]);
 
   async function handleSignOut() {
     await authClient.signOut({});
     await navigate({ to: "/sign-in", replace: true });
   }
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
+  const formatCurrency = (val: number | null) => {
+    if (val === null) return "—";
+    // Watchlist tickers are IDX symbols, so the latest close is quoted in IDR.
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(val);
+  };
 
   const formatDate = (isoString: string | null) => {
     if (!isoString) return "Never";
@@ -106,63 +84,66 @@ function AppShell() {
     });
   };
 
-  const handleAddTicker = (e: React.FormEvent) => {
+  const handleAddTicker = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
     const cleanTicker = inputTicker.trim().toUpperCase();
-
     if (!cleanTicker) {
       setErrorMessage("Ticker symbol cannot be empty.");
       return;
     }
-
     if (watchlist.some((item) => item.ticker === cleanTicker)) {
       setErrorMessage(`Ticker ${cleanTicker} is already in your watchlist.`);
       return;
     }
 
     setIsSubmitting(true);
-
-    setTimeout(() => {
-      const companyName = MOCK_VALID_TICKERS[cleanTicker] || `${cleanTicker} Corp.`;
-
-      const newItem: WatchlistItem = {
-        id: Date.now().toString(),
-        ticker: cleanTicker,
-        companyName: companyName,
-        latestClose: +(Math.random() * 200 + 50).toFixed(2),
-        investigationStatus: "NONE",
-        lastInvestigatedAt: null,
-      };
-
-      setWatchlist((prev) => [newItem, ...prev]);
+    try {
+      const res = await fetch("/api/watchlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: cleanTicker }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not add ${cleanTicker} (HTTP ${res.status})`);
+      }
       setInputTicker("");
+      await loadWatchlist();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Could not add the ticker.");
+    } finally {
       setIsSubmitting(false);
-    }, 300);
+    }
+  };
+
+  const handleRemoveTicker = async (ticker: string) => {
+    setErrorMessage(null);
+    setDeletingTicker(ticker);
+    try {
+      const res = await fetch(`/api/watchlist/${encodeURIComponent(ticker)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error(`Could not remove ${ticker} (HTTP ${res.status})`);
+      }
+      setWatchlist((prev) => prev.filter((item) => item.ticker !== ticker));
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : `Could not remove ${ticker}.`);
+    } finally {
+      setDeletingTicker(null);
+    }
   };
 
   const handleInvestigate = async (ticker: string) => {
-    const cleanTicker = ticker.toUpperCase();
     setErrorMessage(null);
-
-    setWatchlist((prevWatchlist) =>
-      prevWatchlist.map((item) =>
-        item.ticker === cleanTicker
-          ? {
-              ...item,
-              investigationStatus: "IN_PROGRESS",
-              lastInvestigatedAt: new Date().toISOString(),
-            }
-          : item,
-      ),
-    );
 
     try {
       const res = await fetch("/api/investigations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: cleanTicker }),
+        body: JSON.stringify({ ticker }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -170,14 +151,9 @@ function AppShell() {
       }
       // The detail route is keyed by ticker so the address stays readable; the
       // API resolves either a ticker or an investigation id.
-      await navigate({ to: `/investigations/${cleanTicker}` as any });
+      await navigate({ to: `/investigations/${ticker}` as any });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Could not start investigation.");
-      setWatchlist((prevWatchlist) =>
-        prevWatchlist.map((item) =>
-          item.ticker === cleanTicker ? { ...item, investigationStatus: "FAILED" } : item,
-        ),
-      );
     }
   };
 
@@ -204,7 +180,7 @@ function AppShell() {
       <section className="dashboard-panel">
         <div className="mb-4">
           <h2 className="panel-title">Add Watchlist Ticker</h2>
-          <p className="panel-subtitle">Enter ticker symbol (e.g. AAPL, NVDA, TSLA, BBRI)</p>
+          <p className="panel-subtitle">Enter an IDX ticker symbol (e.g. BBCA, BBRI, ANTM)</p>
         </div>
 
         <form onSubmit={handleAddTicker} className="space-y-3">
@@ -215,7 +191,7 @@ function AppShell() {
               </Label>
               <Input
                 id="ticker-input"
-                placeholder="e.g. AAPL"
+                placeholder="e.g. BBRI"
                 value={inputTicker}
                 onChange={(e) => {
                   setInputTicker(e.target.value);
@@ -243,7 +219,14 @@ function AppShell() {
           </h2>
         </div>
 
-        {watchlist.length === 0 ? (
+        {isLoading ? (
+          <div className="watchlist-empty">
+            <p className="flex items-center justify-center gap-2 font-medium text-foreground">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              Loading your watchlist…
+            </p>
+          </div>
+        ) : watchlist.length === 0 ? (
           <div className="watchlist-empty">
             <p className="font-medium text-foreground">Your watchlist is currently empty.</p>
             <p className="text-xs">Add a ticker using the form above to start monitoring.</p>
@@ -251,14 +234,32 @@ function AppShell() {
         ) : (
           <div className="watchlist-grid">
             {watchlist.map((item) => (
-              <div key={item.id} className="ticker-card">
+              <div key={item.ticker} className="ticker-card">
                 {/* Header Card */}
-                <div className="flex justify-between items-start">
-                  <div>
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
                     <h3 className="ticker-symbol">{item.ticker}</h3>
-                    <p className="ticker-company">{item.companyName}</p>
+                    <p className="ticker-company">{item.companyName || "—"}</p>
                   </div>
-                  <span className="ticker-price">{formatCurrency(item.latestClose)}</span>
+                  <div className="flex items-start gap-1.5 shrink-0">
+                    <span className="ticker-price">{formatCurrency(item.latestClose)}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Remove ${item.ticker} from watchlist`}
+                      title={`Remove ${item.ticker}`}
+                      disabled={deletingTicker === item.ticker}
+                      onClick={() => handleRemoveTicker(item.ticker)}
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                      {deletingTicker === item.ticker ? (
+                        <LoaderCircle className="animate-spin" aria-hidden />
+                      ) : (
+                        <Trash aria-hidden />
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Details & Status */}
