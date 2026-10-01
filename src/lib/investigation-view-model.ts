@@ -44,6 +44,15 @@ export interface InvestigationData {
   whatToMonitor: string[];
   investigationPath: ToolCall[];
   previousComparison: string;
+  conversation: ConversationMessage[];
+}
+
+/** One persisted turn of the scoped follow-up conversation. */
+export interface ConversationMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
 }
 
 /** Raw shape of `GET /api/investigations/:id` (see server `InvestigationDetail`). */
@@ -70,6 +79,7 @@ export interface InvestigationDetailResponse {
         durationMs?: number;
       }[]
     | null;
+  conversations?: ConversationMessage[] | null;
 }
 
 const EVIDENCE_CATEGORIES = new Set<string>([
@@ -118,5 +128,6 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
       durationMs: call.durationMs ?? 0,
     })),
     previousComparison: detail.changesSincePrevious ?? "",
+    conversation: detail.conversations ?? [],
   };
 }

@@ -345,3 +345,28 @@
     @apply bg-muted/40 text-muted-foreground border-border/40;
   }
 }
+
+/* Follow-up launcher nudge: a few bounces when a new investigation finishes,
+   then it stops. Reduced-motion users get the static dot only. */
+@keyframes follow-up-nudge {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-6px);
+  }
+  70% {
+    transform: translateY(-2px);
+  }
+}
+
+.follow-up-nudge {
+  animation: follow-up-nudge 0.7s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .follow-up-nudge {
+    animation: none;
+  }
+}
