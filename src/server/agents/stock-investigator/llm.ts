@@ -1,4 +1,5 @@
 import { generateObject } from "ai";
+import { z } from "zod";
 import { INVESTIGATION_DISCLAIMER } from "../../../shared/schemas/investigation.ts";
 import { plannerModel, synthesizerModel } from "../../ai/gateway.ts";
 import type { PlannerInput, SynthesizerInput } from "./graph.ts";
@@ -19,6 +20,25 @@ import {
  */
 const MODEL_MAX_RETRIES = Number(process.env.MODEL_MAX_RETRIES ?? 2);
 
+/**
+ * Appends the required response shape to a prompt.
+ *
+ * `generateObject` sends the schema through the request's `response_format` and
+ * does not put it in the prompt. OpenAI-compatible gateways that ignore
+ * `response_format` (they answer with prose) therefore fail to parse. Spelling
+ * the JSON contract out in the prompt makes the model produce valid JSON even
+ * when the gateway drops `response_format`; a gateway that enforces it simply
+ * sees the same shape twice.
+ */
+export function withJsonContract(schema: z.ZodType, lines: readonly string[]): string {
+  return [
+    ...lines,
+    "Respond with ONLY a single valid JSON object that matches this JSON Schema.",
+    "Do not wrap it in markdown fences and do not add prose before or after it.",
+    JSON.stringify(z.toJSONSchema(schema)),
+  ].join("\n");
+}
+
 export async function planWithModel(
   input: PlannerInput,
   tools: readonly { name: string; description: string }[],
@@ -27,7 +47,7 @@ export async function planWithModel(
     model: plannerModel,
     schema: InvestigationPlanSchema,
     maxRetries: MODEL_MAX_RETRIES,
-    prompt: [
+    prompt: withJsonContract(InvestigationPlanSchema, [
       "You are the planning stage of an auditable Indonesian stock investigation.",
       "Choose only from the approved tools listed below.",
       "Never invent URLs, shell commands, tools, or financial data.",
@@ -46,7 +66,7 @@ export async function planWithModel(
       `Previous investigation: ${JSON.stringify(input.previousInvestigation)}`,
       `Existing evidence: ${JSON.stringify(summarizeEvidence(input.evidence))}`,
       `Approved tools: ${JSON.stringify(tools)}`,
-    ].join("\n"),
+    ]),
   });
   return InvestigationPlanSchema.parse(object);
 }
@@ -56,7 +76,7 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
     model: synthesizerModel,
     schema: InvestigationResultSchema,
     maxRetries: MODEL_MAX_RETRIES,
-    prompt: [
+    prompt: withJsonContract(InvestigationResultSchema, [
       "You are the synthesis stage of an auditable Indonesian stock investigation.",
       "Explain observations from supplied data only; never invent missing facts.",
       "Use deterministic signals for numeric claims and preserve evidence conflicts.",
@@ -73,7 +93,7 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
       `Previous investigation: ${JSON.stringify(input.previousInvestigation)}`,
       `Investigation plan: ${JSON.stringify(input.plan)}`,
       `Evidence: ${JSON.stringify(summarizeEvidence(input.evidence))}`,
-    ].join("\n"),
+    ]),
   });
   const parsed = InvestigationResultSchema.parse(object);
   return { ...parsed, disclaimer: INVESTIGATION_DISCLAIMER };
