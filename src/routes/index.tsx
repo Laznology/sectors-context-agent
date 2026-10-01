@@ -168,8 +168,9 @@ function AppShell() {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Could not start investigation (HTTP ${res.status})`);
       }
-      const { id } = (await res.json()) as { id: string };
-      await navigate({ to: `/investigations/${id}` as any });
+      // The detail route is keyed by ticker so the address stays readable; the
+      // API resolves either a ticker or an investigation id.
+      await navigate({ to: `/investigations/${cleanTicker}` as any });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Could not start investigation.");
       setWatchlist((prevWatchlist) =>
