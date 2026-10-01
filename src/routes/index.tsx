@@ -42,24 +42,42 @@ function AppShell() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
 
-  const loadWatchlist = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch("/api/watchlist?view=dashboard");
-      if (!res.ok) {
-        throw new Error(`Could not load your watchlist (HTTP ${res.status})`);
-      }
-      setWatchlist(toWatchlistItems((await res.json()) as WatchlistDashboardResponse));
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Could not load your watchlist.");
-    } finally {
-      setIsLoading(false);
+  // Fetches the dashboard payload. State updates happen in the caller so the
+  // effect can defer them (see the effect below).
+  const fetchWatchlist = useCallback(async () => {
+    const res = await fetch("/api/watchlist?view=dashboard");
+    if (!res.ok) {
+      throw new Error(`Could not load your watchlist (HTTP ${res.status})`);
     }
+    return toWatchlistItems((await res.json()) as WatchlistDashboardResponse);
   }, []);
 
   useEffect(() => {
-    void loadWatchlist();
-  }, [loadWatchlist]);
+    let ignore = false;
+    void fetchWatchlist()
+      .then((items) => {
+        if (!ignore) setWatchlist(items);
+      })
+      .catch((err: unknown) => {
+        if (ignore) return;
+        setErrorMessage(err instanceof Error ? err.message : "Could not load your watchlist.");
+      })
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [fetchWatchlist]);
+
+  /** Re-reads the watchlist after a mutation, from an event handler. */
+  const reloadWatchlist = async () => {
+    try {
+      setWatchlist(await fetchWatchlist());
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Could not load your watchlist.");
+    }
+  };
 
   async function handleSignOut() {
     await authClient.signOut({});
@@ -110,7 +128,7 @@ function AppShell() {
         throw new Error(body?.error ?? `Could not add ${cleanTicker} (HTTP ${res.status})`);
       }
       setInputTicker("");
-      await loadWatchlist();
+      await reloadWatchlist();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Could not add the ticker.");
     } finally {
