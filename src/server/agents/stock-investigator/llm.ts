@@ -21,6 +21,16 @@ import {
 const MODEL_MAX_RETRIES = Number(process.env.MODEL_MAX_RETRIES ?? 2);
 
 /**
+ * The product's audience is Indonesian retail investors, so every user-facing
+ * string the model writes must be in Bahasa Indonesia. Identifiers, enum values,
+ * tool names, JSON keys, and numbers stay as-is so structured output still
+ * validates.
+ */
+export const OUTPUT_LANGUAGE_INSTRUCTION =
+  "Write every user-facing string in Bahasa Indonesia (Indonesian). " +
+  "Keep identifiers, enum values, tool names, JSON keys, and numbers unchanged.";
+
+/**
  * Appends the required response shape to a prompt.
  *
  * `generateObject` sends the schema through the request's `response_format` and
@@ -56,6 +66,7 @@ export async function planWithModel(
       "Use the fewest evidence calls needed to resolve the question.",
       "If evidence is missing or conflicting, plan a scoped follow-up or leave it unresolved.",
       "Never produce BUY, SELL, or HOLD advice.",
+      OUTPUT_LANGUAGE_INSTRUCTION,
       "Return only the requested structured plan; do not include private reasoning.",
       `Ticker: ${input.ticker}`,
       `Question: ${input.question ?? "Explain the recent movement and what to monitor."}`,
@@ -86,6 +97,7 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
       "evidenceSummary must have one entry per evidence category you actually used, with a short finding and an importance of high, medium, or low.",
       "Never produce BUY, SELL, or HOLD advice, trade instructions, guaranteed returns, or price targets as facts.",
       "Use concise product language: analysis, context, evidence, attention, confidence, and monitoring.",
+      OUTPUT_LANGUAGE_INSTRUCTION,
       "Return only the requested structured result; do not include private reasoning.",
       `Ticker: ${input.ticker}`,
       `Question: ${input.question ?? "Explain the recent movement and what to monitor."}`,

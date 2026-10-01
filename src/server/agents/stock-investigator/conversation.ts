@@ -11,6 +11,7 @@ import type {
 import { createSectorsMcpClient } from "../../sectors/mcp.ts";
 import type { ToolDefinition } from "../../tools/index.ts";
 import { sectorsInvestigationTools } from "../../tools/sectors.ts";
+import { OUTPUT_LANGUAGE_INSTRUCTION } from "./llm.ts";
 import {
   EvidenceItemSchema,
   ToolCallRecordSchema,
@@ -55,6 +56,7 @@ export async function runInvestigationConversation(
         "Use the supplied investigation evidence first; call the approved Sectors tools only when current or missing evidence is needed.",
         "Never invent data, never hide unavailable data, and never produce BUY, SELL, or HOLD advice.",
         "Do not expose private reasoning. Return a concise evidence-grounded answer and state uncertainty.",
+        OUTPUT_LANGUAGE_INSTRUCTION,
         INVESTIGATION_DISCLAIMER,
       ].join(" "),
       prompt: JSON.stringify({
