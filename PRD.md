@@ -630,6 +630,10 @@ This demonstrates meaningful state management.
 
 # 19. Follow-up Conversation
 
+The investigation detail page **must** include a scoped follow-up input. This is
+part of the MVP (see §5) and part of the demo script (§28), not an optional
+extra.
+
 Investigation detail page contains a simple input.
 
 Example:
@@ -966,9 +970,15 @@ Medium confidence
 
 2–3 items maximum.
 
+### Investigation Path
+
+Required (see §27): the ordered, human-readable steps the agent took, each with
+its finding. Never render raw tool names or developer diagnostics here.
+
 ### Follow-up
 
-Small scoped chat input.
+Small scoped chat input. Required — the investigation must be `completed` before
+it accepts follow-ups.
 
 ---
 
@@ -990,7 +1000,27 @@ Every investigation must expose:
 4. final classification;
 5. confidence.
 
-Optional UI:
+## Investigation Path (required)
+
+The investigation detail page **must** render the investigation path. It is not
+optional: it is what separates this product from a data summary, and it is the
+main artifact for demoing conditional tool routing.
+
+Requirements:
+
+- show every step that was attempted, in order, including the ones that failed
+  or were skipped;
+- use a **human-readable label per step** (`Price Context`, `Sector Context`,
+  `Foreign Flow`, …), never the raw tool identifier (`get_price_context`);
+- show the **finding** for each step — the short, evidence-grounded outcome, not
+  a status word;
+- do **not** show developer diagnostics in the main view: no durations in
+  milliseconds, no internal status enums, no raw error codes.
+
+Technical detail may still exist behind a collapsed "Technical details"
+affordance, but the default view is the human-readable path above.
+
+Example:
 
 ```text
 Investigation Path
@@ -1110,8 +1140,17 @@ MVP is complete only when all conditions below pass.
 ## Evidence
 
 - user can see supporting evidence;
-- user can identify which tools were called;
+- user can identify which tools were called, shown with human-readable labels
+  rather than raw tool identifiers;
+- the investigation path is visible on the detail page (see §27);
 - final conclusion references collected evidence.
+
+## Follow-up
+
+- the detail page offers a scoped follow-up input once the investigation is
+  `completed`;
+- answers stay grounded in the investigation's evidence;
+- the conversation remains scoped to the current investigation/ticker.
 
 ## Memory
 
