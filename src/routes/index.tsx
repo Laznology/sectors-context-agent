@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
-import { createRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard, useSession } from "@/lib/session";
 import { rootRoute } from "@/routes/__root";
+import { createRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 
 // Pastikan mengimpor index.css
 import "@/index.css";
@@ -142,26 +142,42 @@ function AppShell() {
     }, 300);
   };
 
-  const handleInvestigate = (ticker: string) => {
+  const handleInvestigate = async (ticker: string) => {
     const cleanTicker = ticker.toUpperCase();
+    setErrorMessage(null);
 
     setWatchlist((prevWatchlist) =>
-      prevWatchlist.map((item) => {
-        if (item.ticker === cleanTicker) {
-          return {
-            ...item,
-            investigationStatus: "IN_PROGRESS",
-            lastInvestigatedAt: new Date().toISOString(),
-          };
-        }
-        return item;
-      }),
+      prevWatchlist.map((item) =>
+        item.ticker === cleanTicker
+          ? {
+              ...item,
+              investigationStatus: "IN_PROGRESS",
+              lastInvestigatedAt: new Date().toISOString(),
+            }
+          : item,
+      ),
     );
 
-    // Gunakan 'void' di depan navigate
-    void navigate({
-      to: `/investigations/${ticker.toLowerCase()}` as any,
-    });
+    try {
+      const res = await fetch("/api/investigations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: cleanTicker }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not start investigation (HTTP ${res.status})`);
+      }
+      const { id } = (await res.json()) as { id: string };
+      await navigate({ to: `/investigations/${id}` as any });
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Could not start investigation.");
+      setWatchlist((prevWatchlist) =>
+        prevWatchlist.map((item) =>
+          item.ticker === cleanTicker ? { ...item, investigationStatus: "FAILED" } : item,
+        ),
+      );
+    }
   };
 
   return (

@@ -1,26 +1,38 @@
 /**
  * Investigation detail route (PRD #26).
  *
- * TODO(frontend): implement.
- *
  * Data:
  * - GET /api/investigations/:id — investigation detail payload;
  * - GET /api/investigations/:id/events — SSE stream for live status updates.
- *
- * Sections:
- * - header: ticker + company name;
- * - status badge (e.g. NEEDS ATTENTION);
- * - what changed, why (agent explanation);
- * - evidence cards, see components/evidence-panel.tsx;
- * - confidence, what to monitor (2-3 items max);
- * - scoped follow-up chat, see components/chat-panel.tsx (PRD #19).
  */
-import { useState, useEffect } from "react";
-import { createRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { rootRoute } from "@/routes/__root";
-import { SessionGuard } from "@/lib/session";
 import { Button } from "@/components/ui/button";
+import {
+  toInvestigationData,
+  type InvestigationData,
+  type InvestigationDetailResponse,
+  type LikelyDriver,
+} from "@/lib/investigation-view-model";
+import { SessionGuard } from "@/lib/session";
 import { useInvestigationSSE, type PipelineStatus } from "@/lib/use-investigation-sse";
+import { rootRoute } from "@/routes/__root";
+import { createRoute, useNavigate, useParams } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  Banknote,
+  Check,
+  Factory,
+  FileText,
+  Globe,
+  Landmark,
+  LoaderCircle,
+  Newspaper,
+  RefreshCw,
+  TrendingUp,
+  TriangleAlert,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 export const investigationDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -28,49 +40,7 @@ export const investigationDetailRoute = createRoute({
   component: InvestigationDetailPage,
 });
 
-// Types & Interfaces untuk Payload Laporan Asli dari Backend
-export type LikelyDriver =
-  | "MARKET_DRIVEN"
-  | "SECTOR_DRIVEN"
-  | "FLOW_DRIVEN"
-  | "COMPANY_SPECIFIC"
-  | "MIXED"
-  | "UNCLEAR";
-
-export interface ToolCall {
-  toolName: string;
-  reason: string;
-  status: "success" | "failure";
-  durationMs: number;
-}
-
-export interface InvestigationData {
-  id: string;
-  ticker: string;
-  companyName: string;
-  question: string;
-  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
-  whatChanged: string;
-  whyItMatters: string;
-  explanation: string;
-  likelyDriver: LikelyDriver;
-  evidence: {
-    priceVolume: string;
-    market: string;
-    sector: string;
-    foreignFlow: string;
-    broker: string;
-    news: string;
-    filing: string;
-  };
-  confidence: "HIGH" | "MEDIUM" | "LOW";
-  confidenceReason: string;
-  whatToMonitor: string[];
-  investigationPath: ToolCall[];
-  previousComparison: string;
-}
-
-// 8 Status Stepper Pipeline
+// Pipeline stages the stepper renders, in order.
 const PIPELINE_STEPS: { status: PipelineStatus; label: string }[] = [
   { status: "pending", label: "Pending" },
   { status: "collecting_baseline", label: "Collecting Baseline" },
@@ -99,28 +69,35 @@ function InvestigationContent() {
 
   // 2. State Laporan Akhir
   const [summaryData, setSummaryData] = useState<InvestigationData | null>(null);
-  const [isFetchingSummary, setIsFetchingSummary] = useState(false);
+  const [isFetchingSummary, setIsFetchingSummary] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   const currentStatusIdx = PIPELINE_STEPS.findIndex((s) => s.status === eventData.status);
   const isFailed = eventData.status === "failed";
-  const isCompleted = eventData.status === "completed" || summaryData?.status === "COMPLETED";
+  const isTerminal = eventData.status === "completed" || eventData.status === "failed";
 
-  // Handler manual untuk tombol muat ulang
-  const handleRetry = () => {
+  const reload = () => {
     setIsFetchingSummary(true);
     setFetchError(null);
+    setReloadToken((token) => token + 1);
+  };
+
+  useEffect(() => {
+    let ignore = false;
+
     void fetch(`/api/investigations/${id}`)
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Gagal mengambil data dari API (HTTP ${res.status})`);
         }
-        return res.json() as Promise<InvestigationData>;
+        return toInvestigationData((await res.json()) as InvestigationDetailResponse);
       })
       .then((data) => {
-        setSummaryData(data);
+        if (!ignore) setSummaryData(data);
       })
       .catch((err: unknown) => {
+        if (ignore) return;
         const message =
           err instanceof Error
             ? err.message
@@ -129,54 +106,13 @@ function InvestigationContent() {
         setFetchError(message);
       })
       .finally(() => {
-        setIsFetchingSummary(false);
+        if (!ignore) setIsFetchingSummary(false);
       });
-  };
-
-  // Auto-fetch asinkron saat SSE selesai tanpa memicu re-render
-  useEffect(() => {
-    let ignore = false;
-
-    if ((eventData.status === "completed" || isCompleted) && !summaryData && !isFetchingSummary) {
-      Promise.resolve().then(() => {
-        if (ignore) return;
-        setIsFetchingSummary(true);
-        setFetchError(null);
-
-        void fetch(`/api/investigations/${id}`)
-          .then((res) => {
-            if (!res.ok) {
-              throw new Error(`Gagal mengambil data dari API (HTTP ${res.status})`);
-            }
-            return res.json() as Promise<InvestigationData>;
-          })
-          .then((data) => {
-            if (!ignore) {
-              setSummaryData(data);
-            }
-          })
-          .catch((err: unknown) => {
-            if (!ignore) {
-              const message =
-                err instanceof Error
-                  ? err.message
-                  : "Data laporan investigasi belum siap dari server API.";
-              console.error("Error fetching investigation summary:", err);
-              setFetchError(message);
-            }
-          })
-          .finally(() => {
-            if (!ignore) {
-              setIsFetchingSummary(false);
-            }
-          });
-      });
-    }
 
     return () => {
       ignore = true;
     };
-  }, [eventData.status, id, isCompleted, summaryData, isFetchingSummary]);
+  }, [id, isTerminal, reloadToken]);
 
   return (
     <div className="dashboard-wrapper pb-16 space-y-8">
@@ -191,7 +127,8 @@ function InvestigationContent() {
             }}
             className="w-fit -ml-2 text-xs text-muted-foreground"
           >
-            ← Kembali ke Dashboard
+            <ArrowLeft aria-hidden />
+            Kembali ke Dashboard
           </Button>
           <h1 className="dashboard-title">
             Investigasi Ticker: <span className="uppercase text-primary">{id}</span>
@@ -247,7 +184,7 @@ function InvestigationContent() {
                         : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {isDone ? "✓" : idx + 1}
+                  {isDone ? <Check className="size-3" aria-hidden /> : idx + 1}
                 </span>
                 <span className="line-clamp-1">{step.label}</span>
               </div>
@@ -258,8 +195,9 @@ function InvestigationContent() {
         {/* Active Tool Call & Reason Box */}
         {eventData.currentTool && (
           <div className="rounded-lg border border-border/60 bg-muted/20 p-4 space-y-2">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-primary font-bold">
-              🛠 Active Tool Executing
+            <span className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-primary font-bold">
+              <Wrench className="size-3.5" aria-hidden />
+              Active Tool Executing
             </span>
             <p className="text-sm font-mono font-bold text-foreground">
               {eventData.currentTool.toolName}
@@ -274,7 +212,10 @@ function InvestigationContent() {
         {/* Failure Alert */}
         {isFailed && (
           <div className="rounded-lg border border-rose-500/50 bg-rose-500/10 p-4 space-y-1">
-            <h4 className="text-sm font-bold text-rose-400">⚠️ Pipeline Execution Failed</h4>
+            <h4 className="flex items-center gap-1.5 text-sm font-bold text-rose-400">
+              <TriangleAlert className="size-4" aria-hidden />
+              Pipeline Execution Failed
+            </h4>
             <p className="text-xs font-mono text-rose-300">
               {eventData.error || "Terjadi kesalahan pada eksekusi agen."}
             </p>
@@ -283,17 +224,19 @@ function InvestigationContent() {
       </section>
 
       {/* SECTION 2: INDIKATOR MEMUAT LAPORAN ATAU ERROR HANDLER */}
-      {isCompleted && !summaryData && (
+      {!summaryData && (isFetchingSummary || fetchError) && (
         <div className="dashboard-panel text-center py-8 space-y-3">
           {isFetchingSummary ? (
-            <p className="text-sm font-mono text-primary animate-pulse">
-              ⏳ Memuat laporan sintesis hasil investigasi dari backend API...
+            <p className="flex items-center justify-center gap-2 text-sm font-mono text-primary">
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              Memuat laporan sintesis hasil investigasi dari backend API...
             </p>
           ) : fetchError ? (
             <div className="space-y-3">
               <p className="text-xs font-mono text-amber-400">{fetchError}</p>
-              <Button size="sm" variant="outline" onClick={handleRetry}>
-                🔄 Coba Muat Ulang Laporan API
+              <Button size="sm" variant="outline" onClick={reload}>
+                <RefreshCw aria-hidden />
+                Coba Muat Ulang Laporan API
               </Button>
             </div>
           ) : null}
@@ -352,34 +295,38 @@ function InvestigationContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <EvidenceCard
                 title="Price / Volume"
-                content={summaryData.evidence?.priceVolume}
-                icon="📈"
+                content={summaryData.evidence?.price_volume}
+                icon={TrendingUp}
               />
               <EvidenceCard
                 title="Market Context"
                 content={summaryData.evidence?.market}
-                icon="🌐"
+                icon={Globe}
               />
               <EvidenceCard
                 title="Sector Context"
                 content={summaryData.evidence?.sector}
-                icon="🏭"
+                icon={Factory}
               />
               <EvidenceCard
                 title="Foreign Flow"
-                content={summaryData.evidence?.foreignFlow}
-                icon="💵"
+                content={summaryData.evidence?.foreign_flow}
+                icon={Banknote}
               />
               <EvidenceCard
                 title="Broker Activity"
                 content={summaryData.evidence?.broker}
-                icon="🏛"
+                icon={Landmark}
               />
-              <EvidenceCard title="News Sentiment" content={summaryData.evidence?.news} icon="📰" />
+              <EvidenceCard
+                title="News Sentiment"
+                content={summaryData.evidence?.news}
+                icon={Newspaper}
+              />
               <EvidenceCard
                 title="Official Filing"
                 content={summaryData.evidence?.filing}
-                icon="📄"
+                icon={FileText}
               />
             </div>
           </section>
@@ -452,12 +399,20 @@ function InvestigationContent() {
 }
 
 // Helpers Sub-Components
-function EvidenceCard({ title, content, icon }: { title: string; content?: string; icon: string }) {
+function EvidenceCard({
+  title,
+  content,
+  icon: Icon,
+}: {
+  title: string;
+  content?: string;
+  icon: LucideIcon;
+}) {
   if (!content) return null;
   return (
     <div className="dashboard-panel flex flex-col gap-2 p-4">
       <div className="flex items-center gap-2 border-b border-border/30 pb-2">
-        <span>{icon}</span>
+        <Icon className="size-4 text-muted-foreground" aria-hidden />
         <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
           {title}
         </h3>
