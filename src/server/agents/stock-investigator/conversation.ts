@@ -11,6 +11,7 @@ import type {
 import { createSectorsMcpClient } from "../../sectors/mcp.ts";
 import type { ToolDefinition } from "../../tools/index.ts";
 import { sectorsInvestigationTools } from "../../tools/sectors.ts";
+import { toPlainAnswer } from "./answer-format.ts";
 import { OUTPUT_LANGUAGE_INSTRUCTION } from "./llm.ts";
 import {
   EvidenceItemSchema,
@@ -28,6 +29,22 @@ export type InvestigationConversationResult = {
   readonly message: ConversationRecord;
   readonly toolCalls: readonly ToolCallRecord[];
 };
+
+/**
+ * House style for follow-up answers. The chat renders plain text, and answers
+ * should read like a short analyst note rather than a generated report.
+ */
+export const FOLLOW_UP_STYLE_INSTRUCTION = [
+  "Answer style:",
+  "Open with one sentence that answers the question directly. No preamble, no restating the question, no headings.",
+  "Then give at most four short supporting points, each on its own line starting with '- '. Each point names the date or period and the figure from the evidence or tool data.",
+  "Optionally end with one line that starts with 'Pantau: ' naming what to watch next.",
+  "Keep the whole answer under 120 words. Leave out anything that does not help answer the question.",
+  "Plain text only: no markdown headings, tables, bold, italics, code formatting, or emoji. Do not use em dashes or en dashes; use commas or periods.",
+  "Write like a calm analyst: plain words, no hype, no dramatic phrasing.",
+  "Do not call the stock bullish or bearish, and do not predict price levels or direction. Describe what the data shows and what to monitor.",
+  "If data for part of the question is unavailable, say so in one short sentence.",
+].join(" ");
 
 const McpToolCallSchema = z.object({
   toolName: z.string(),
@@ -56,6 +73,7 @@ export async function runInvestigationConversation(
         "Use the supplied investigation evidence first; call the approved Sectors tools only when current or missing evidence is needed.",
         "Never invent data, never hide unavailable data, and never produce BUY, SELL, or HOLD advice.",
         "Do not expose private reasoning. Return a concise evidence-grounded answer and state uncertainty.",
+        FOLLOW_UP_STYLE_INSTRUCTION,
         OUTPUT_LANGUAGE_INSTRUCTION,
         INVESTIGATION_DISCLAIMER,
       ].join(" "),
@@ -80,7 +98,7 @@ export async function runInvestigationConversation(
       abortSignal: input.signal,
     });
 
-    const answer = response.text.trim();
+    const answer = toPlainAnswer(response.text);
     if (!answer) throw new Error("Conversation model returned an empty response");
 
     const toolCalls = collectMcpToolCalls(response.toolCalls, response.toolResults);
