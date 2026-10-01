@@ -22,9 +22,9 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 // 3. Buat Instance Router
-const router = createRouter({ routeTree });
+export const router = createRouter({ routeTree });
 
-// Register Router untuk Type Safety
+// HANYA DEKLARASIKAN DI SINI
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;

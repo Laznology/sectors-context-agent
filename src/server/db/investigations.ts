@@ -16,6 +16,9 @@ import type {
 import { getDb, type Database } from "./index.ts";
 import { agentToolCalls, conversations, investigationEvidence, investigations } from "./schema.ts";
 
+// Helper untuk mengecek apakah string berbentuk UUID valid
+const IS_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type InvestigationCreateInput = {
   readonly userId: string;
   readonly ticker: string;
@@ -241,28 +244,35 @@ export class PostgresInvestigationStore implements InvestigationStore {
   }
 
   async getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null> {
+    const isUuid = IS_UUID_REGEX.test(investigationId);
+    const targetCondition = isUuid
+      ? eq(investigations.id, investigationId)
+      : eq(investigations.ticker, investigationId.toUpperCase());
+
     const [row] = await this.db
       .select()
       .from(investigations)
-      .where(and(eq(investigations.id, investigationId), eq(investigations.userId, userId)))
+      .where(and(targetCondition, eq(investigations.userId, userId)))
+      .orderBy(desc(investigations.createdAt))
       .limit(1);
+
     if (!row) return null;
 
     const [evidenceRows, toolCallRows, conversationRows] = await Promise.all([
       this.db
         .select()
         .from(investigationEvidence)
-        .where(eq(investigationEvidence.investigationId, investigationId))
+        .where(eq(investigationEvidence.investigationId, row.id))
         .orderBy(asc(investigationEvidence.createdAt)),
       this.db
         .select()
         .from(agentToolCalls)
-        .where(eq(agentToolCalls.investigationId, investigationId))
+        .where(eq(agentToolCalls.investigationId, row.id))
         .orderBy(asc(agentToolCalls.createdAt)),
       this.db
         .select()
         .from(conversations)
-        .where(eq(conversations.investigationId, investigationId))
+        .where(eq(conversations.investigationId, row.id))
         .orderBy(asc(conversations.createdAt)),
     ]);
 

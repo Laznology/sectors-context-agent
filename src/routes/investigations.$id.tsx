@@ -134,11 +134,14 @@ function InvestigationContent() {
   };
 
   // Auto-fetch asinkron saat SSE selesai tanpa memicu re-render
+  // src/routes/investigations.$id.tsx
+
   useEffect(() => {
     let ignore = false;
 
     if ((eventData.status === "completed" || isCompleted) && !summaryData && !isFetchingSummary) {
-      Promise.resolve().then(() => {
+      // TAMBAHKAN 'void' DI DEPAN Promise.resolve()
+      void Promise.resolve().then(() => {
         if (ignore) return;
         setIsFetchingSummary(true);
         setFetchError(null);
