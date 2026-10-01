@@ -1,9 +1,12 @@
 /**
  * Investigation detail route (PRD #26).
  *
+ * The URL carries the ticker (e.g. /investigations/BBRI) so the address stays
+ * human-readable; the API accepts either a ticker or an investigation id.
+ *
  * Data:
- * - GET /api/investigations/:id — investigation detail payload;
- * - GET /api/investigations/:id/events — SSE stream for live status updates.
+ * - GET /api/investigations/:idOrTicker — investigation detail payload;
+ * - GET /api/investigations/:idOrTicker/events — SSE stream for live status updates.
  */
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +39,7 @@ import { useEffect, useState } from "react";
 
 export const investigationDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/investigations/$id",
+  path: "/investigations/$ticker",
   component: InvestigationDetailPage,
 });
 
@@ -61,11 +64,11 @@ function InvestigationDetailPage() {
 
 function InvestigationContent() {
   const params = useParams({ strict: false }) as Record<string, string>;
-  const id = params?.id || "ticker";
+  const ticker = params?.ticker ?? "";
   const navigate = useNavigate();
 
-  // 1. Live SSE Stream Connection dari /api/investigations/:id/events
-  const { eventData, isConnected } = useInvestigationSSE(id);
+  // 1. Live SSE Stream Connection dari /api/investigations/:ticker/events
+  const { eventData, isConnected } = useInvestigationSSE(ticker);
 
   // 2. State Laporan Akhir
   const [summaryData, setSummaryData] = useState<InvestigationData | null>(null);
@@ -86,7 +89,7 @@ function InvestigationContent() {
   useEffect(() => {
     let ignore = false;
 
-    void fetch(`/api/investigations/${id}`)
+    void fetch(`/api/investigations/${ticker}`)
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Gagal mengambil data dari API (HTTP ${res.status})`);
@@ -112,7 +115,7 @@ function InvestigationContent() {
     return () => {
       ignore = true;
     };
-  }, [id, isTerminal, reloadToken]);
+  }, [ticker, isTerminal, reloadToken]);
 
   return (
     <div className="dashboard-wrapper pb-16 space-y-8">
@@ -131,7 +134,7 @@ function InvestigationContent() {
             Kembali ke Dashboard
           </Button>
           <h1 className="dashboard-title">
-            Investigasi Ticker: <span className="uppercase text-primary">{id}</span>
+            Investigasi Ticker: <span className="uppercase text-primary">{ticker}</span>
           </h1>
         </div>
 
@@ -154,7 +157,7 @@ function InvestigationContent() {
           <h2 className="panel-title">Investigation Progress</h2>
           <p className="panel-subtitle">
             Tracking real-time eksekusi pipeline agent untuk ticker{" "}
-            <strong className="uppercase">{id}</strong>.
+            <strong className="uppercase">{ticker}</strong>.
           </p>
         </div>
 

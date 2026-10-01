@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, or } from "drizzle-orm";
 import type {
   InvestigationClassification,
   InvestigationDriver,
@@ -125,7 +125,8 @@ export interface InvestigationStore {
   create(input: InvestigationCreateInput): Promise<{ id: string }>;
   findPrevious(userId: string, ticker: string): Promise<PreviousInvestigation | null>;
   list(userId: string, page?: { limit: number; offset: number }): Promise<InvestigationSummary[]>;
-  getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null>;
+  /** Resolves either an investigation id or a ticker, newest first. */
+  getDetail(userId: string, idOrTicker: string): Promise<InvestigationDetail | null>;
   updateFromState(investigationId: string, patch: InvestigationStatePatch): Promise<void>;
   appendEvidence(investigationId: string, items: readonly EvidenceItem[]): Promise<void>;
   appendToolCalls(investigationId: string, records: readonly ToolCallRecord[]): Promise<void>;
@@ -240,11 +241,23 @@ export class PostgresInvestigationStore implements InvestigationStore {
     }));
   }
 
-  async getDetail(userId: string, investigationId: string): Promise<InvestigationDetail | null> {
+  async getDetail(userId: string, idOrTicker: string): Promise<InvestigationDetail | null> {
+    // The detail route is keyed by ticker for readable URLs, but existing links
+    // and API clients still pass the investigation id. Accept both and prefer
+    // the newest match when a ticker has several runs.
     const [row] = await this.db
       .select()
       .from(investigations)
-      .where(and(eq(investigations.id, investigationId), eq(investigations.userId, userId)))
+      .where(
+        and(
+          eq(investigations.userId, userId),
+          or(
+            eq(investigations.id, idOrTicker),
+            eq(investigations.ticker, idOrTicker.toUpperCase()),
+          ),
+        ),
+      )
+      .orderBy(desc(investigations.createdAt))
       .limit(1);
     if (!row) return null;
 
@@ -252,17 +265,17 @@ export class PostgresInvestigationStore implements InvestigationStore {
       this.db
         .select()
         .from(investigationEvidence)
-        .where(eq(investigationEvidence.investigationId, investigationId))
+        .where(eq(investigationEvidence.investigationId, row.id))
         .orderBy(asc(investigationEvidence.createdAt)),
       this.db
         .select()
         .from(agentToolCalls)
-        .where(eq(agentToolCalls.investigationId, investigationId))
+        .where(eq(agentToolCalls.investigationId, row.id))
         .orderBy(asc(agentToolCalls.createdAt)),
       this.db
         .select()
         .from(conversations)
-        .where(eq(conversations.investigationId, investigationId))
+        .where(eq(conversations.investigationId, row.id))
         .orderBy(asc(conversations.createdAt)),
     ]);
 

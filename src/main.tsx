@@ -1,12 +1,12 @@
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { createRouter, RouterProvider } from "@tanstack/react-router";
 
 // 1. Impor Root Route & Semua Rute Halaman
 import { rootRoute } from "@/routes/__root";
-import { indexRoute } from "@/routes/index";
-import { investigationDetailRoute } from "@/routes/investigations.$id"; // <-- Pastikan ini terimpor
 import { historyRoute } from "@/routes/history";
+import { indexRoute } from "@/routes/index";
+import { investigationDetailRoute } from "@/routes/investigations.$ticker";
 import { signInRoute } from "@/routes/sign-in";
 import { signUpRoute } from "@/routes/sign-up";
 
