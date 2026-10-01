@@ -10,7 +10,6 @@ import { fetchCompanyOverview } from "../sectors/company.ts";
 import { healthRoutes } from "./health.ts";
 import { createInvestigationRoutes, InvestigationRunManager } from "./investigations.ts";
 import { createWatchlistRoutes } from "./watchlist.ts";
-import { streamSSE } from "hono/streaming";
 
 export const apiRoutes = new Hono();
 
@@ -47,32 +46,3 @@ function resolveSessionUserId(context: Context): string {
   const session = context.get("session") as typeof auth.$Infer.Session;
   return session.user.id;
 }
-
-const app = new Hono();
-
-// Wajib mencocokkan route path: /api/investigations/:id/events
-app.get("/api/investigations/:id/events", async (c) => {
-  const id = c.req.param("id");
-
-  // Set header anti-buffering & event-stream
-  c.header("Content-Type", "text/event-stream");
-  c.header("Cache-Control", "no-cache");
-  c.header("Connection", "keep-alive");
-  c.header("X-Accel-Buffering", "no");
-
-  return streamSSE(c, async (stream) => {
-    // Contoh pengiriman event awal
-    await stream.writeSSE({
-      data: JSON.stringify({
-        status: "collecting_baseline",
-        currentTool: {
-          toolName: "MarketDataFetcher",
-          reason: `Mengambil data historis ticker ${id.toUpperCase()}`,
-        },
-      }),
-      event: "message",
-    });
-  });
-});
-
-export default app;
