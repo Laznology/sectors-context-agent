@@ -8,6 +8,7 @@
  * - GET /api/investigations/:idOrTicker — investigation detail payload;
  * - GET /api/investigations/:idOrTicker/events — SSE stream for live status updates.
  */
+import { ChatPanel } from "@/components/chat-panel";
 import { Button } from "@/components/ui/button";
 import {
   toInvestigationData,
@@ -68,7 +69,7 @@ function InvestigationContent() {
   const navigate = useNavigate();
 
   // 1. Live SSE Stream Connection dari /api/investigations/:ticker/events
-  const { eventData, isConnected } = useInvestigationSSE(ticker);
+  const { eventData } = useInvestigationSSE(ticker);
 
   // 2. State Laporan Akhir
   const [summaryData, setSummaryData] = useState<InvestigationData | null>(null);
@@ -136,18 +137,9 @@ function InvestigationContent() {
           <h1 className="dashboard-title">
             Investigasi Ticker: <span className="uppercase text-primary">{ticker}</span>
           </h1>
-        </div>
-
-        {/* Live SSE Status Badge */}
-        <div className="flex items-center gap-2 border border-border/40 px-3 py-1.5 rounded-full bg-panel/60">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              isConnected ? "bg-emerald-500 animate-pulse" : "bg-gray-500"
-            }`}
-          />
-          <span className="text-xs font-mono text-muted-foreground">
-            {isConnected ? "Live Stream Active" : "Stream Disconnected"}
-          </span>
+          {summaryData?.companyName && (
+            <p className="text-sm text-muted-foreground">{summaryData.companyName}</p>
+          )}
         </div>
       </div>
 
@@ -164,7 +156,7 @@ function InvestigationContent() {
         {/* Progress Stepper Visual */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {PIPELINE_STEPS.map((step, idx) => {
-            const isCurrent = eventData.status === step.status;
+            const isCurrent = eventData.status === step.status && eventData.status !== "completed";
             const isDone = currentStatusIdx > idx || eventData.status === "completed";
 
             return (
@@ -365,29 +357,14 @@ function InvestigationContent() {
             </div>
           </section>
 
-          {/* Investigation Path Timeline */}
-          <section className="dashboard-panel space-y-4">
-            <h2 className="panel-title">Investigation Path Execution Log</h2>
-
-            <div className="divide-y divide-border/40">
-              {summaryData.investigationPath?.map((tool, idx) => (
-                <div key={idx} className="py-3 flex items-center justify-between gap-4 text-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-foreground">{tool.toolName}</span>
-                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-emerald-500/10 text-emerald-400">
-                        {tool.status}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground">{tool.reason}</p>
-                  </div>
-                  <span className="font-mono text-muted-foreground shrink-0">
-                    {tool.durationMs}ms
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* Scoped follow-up conversation (FE wiki #5) */}
+          <ChatPanel
+            key={`${summaryData.id}-${summaryData.status}`}
+            investigationId={summaryData.id}
+            ticker={summaryData.ticker || ticker}
+            initialMessages={summaryData.conversation}
+            isEnabled={summaryData.status === "COMPLETED"}
+          />
 
           {/* Disclaimer Footer */}
           <footer className="text-center pt-4 border-t border-border/30">

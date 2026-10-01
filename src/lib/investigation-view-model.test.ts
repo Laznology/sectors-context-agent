@@ -44,5 +44,26 @@ describe("toInvestigationData", () => {
     expect(result.status).toBe("IN_PROGRESS");
     expect(result.evidence).toEqual({});
     expect(result.whatToMonitor).toEqual([]);
+    expect(result.conversation).toEqual([]);
+  });
+
+  it("keeps the persisted follow-up conversation in order", () => {
+    const conversations = [
+      {
+        id: "c1",
+        role: "user" as const,
+        content: "Foreign flow?",
+        createdAt: "2026-10-01T00:00:00Z",
+      },
+      {
+        id: "c2",
+        role: "assistant" as const,
+        content: "Masih net buy.",
+        createdAt: "2026-10-01T00:00:05Z",
+      },
+    ];
+    const result = toInvestigationData({ id: "inv-3", status: "completed", conversations });
+
+    expect(result.conversation).toEqual(conversations);
   });
 });
