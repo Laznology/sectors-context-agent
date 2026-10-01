@@ -16,6 +16,13 @@ import type {
 import { getDb, type Database } from "./index.ts";
 import { agentToolCalls, conversations, investigationEvidence, investigations } from "./schema.ts";
 
+/**
+ * `investigations.id` is a uuid column, so comparing it against a non-uuid
+ * string (e.g. a ticker) makes Postgres reject the query with a 500. Only the
+ * id side of the lookup is guarded by this shape check.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export type InvestigationCreateInput = {
   readonly userId: string;
   readonly ticker: string;
@@ -245,18 +252,15 @@ export class PostgresInvestigationStore implements InvestigationStore {
     // The detail route is keyed by ticker for readable URLs, but existing links
     // and API clients still pass the investigation id. Accept both and prefer
     // the newest match when a ticker has several runs.
+    const trimmed = idOrTicker.trim();
+    const target = UUID_PATTERN.test(trimmed)
+      ? or(eq(investigations.id, trimmed), eq(investigations.ticker, trimmed.toUpperCase()))
+      : eq(investigations.ticker, trimmed.toUpperCase());
+
     const [row] = await this.db
       .select()
       .from(investigations)
-      .where(
-        and(
-          eq(investigations.userId, userId),
-          or(
-            eq(investigations.id, idOrTicker),
-            eq(investigations.ticker, idOrTicker.toUpperCase()),
-          ),
-        ),
-      )
+      .where(and(eq(investigations.userId, userId), target))
       .orderBy(desc(investigations.createdAt))
       .limit(1);
     if (!row) return null;
