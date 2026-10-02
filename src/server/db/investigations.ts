@@ -83,6 +83,8 @@ export type InvestigationSummary = {
   readonly classification?: InvestigationClassification | null;
   readonly driver?: InvestigationDriver | null;
   readonly confidence?: number | null;
+  /** One-line "what changed" from the synthesis, for history rows. */
+  readonly whatChanged?: string | null;
   readonly createdAt: string;
   readonly completedAt?: string | null;
 };
@@ -225,6 +227,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
         classification: investigations.classification,
         driver: investigations.driver,
         confidence: investigations.confidence,
+        whatChanged: investigations.whatChanged,
         createdAt: investigations.createdAt,
         completedAt: investigations.completedAt,
       })
@@ -243,6 +246,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
       classification: row.classification ?? null,
       driver: row.driver ?? null,
       confidence: row.confidence ?? null,
+      whatChanged: row.whatChanged ?? null,
       createdAt: row.createdAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
     }));
