@@ -135,7 +135,9 @@ function InvestigationContent() {
             Kembali ke Dashboard
           </Button>
           <h1 className="dashboard-title">
-            Investigasi Ticker: <span className="uppercase text-primary">{ticker}</span>
+            {/* The URL may carry an investigation id (history links), so prefer the loaded ticker. */}
+            Investigasi Ticker:{" "}
+            <span className="uppercase text-primary">{summaryData?.ticker || ticker}</span>
           </h1>
           {summaryData?.companyName && (
             <p className="text-sm text-muted-foreground">{summaryData.companyName}</p>
@@ -149,7 +151,7 @@ function InvestigationContent() {
           <h2 className="panel-title">Investigation Progress</h2>
           <p className="panel-subtitle">
             Tracking real-time eksekusi pipeline agent untuk ticker{" "}
-            <strong className="uppercase">{ticker}</strong>.
+            <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
           </p>
         </div>
 
