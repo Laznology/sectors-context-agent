@@ -134,7 +134,9 @@ function InvestigationContent() {
             Kembali ke Dashboard
           </Button>
           <h1 className="dashboard-title">
-            Investigasi Ticker: <span className="uppercase text-primary">{ticker}</span>
+            {/* The URL may carry an investigation id (history links), so prefer the loaded ticker. */}
+            Investigasi Ticker:{" "}
+            <span className="uppercase text-primary">{summaryData?.ticker || ticker}</span>
           </h1>
         </div>
 
@@ -157,14 +159,14 @@ function InvestigationContent() {
           <h2 className="panel-title">Investigation Progress</h2>
           <p className="panel-subtitle">
             Tracking real-time eksekusi pipeline agent untuk ticker{" "}
-            <strong className="uppercase">{ticker}</strong>.
+            <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
           </p>
         </div>
 
         {/* Progress Stepper Visual */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
           {PIPELINE_STEPS.map((step, idx) => {
-            const isCurrent = eventData.status === step.status;
+            const isCurrent = eventData.status === step.status && eventData.status !== "completed";
             const isDone = currentStatusIdx > idx || eventData.status === "completed";
 
             return (
