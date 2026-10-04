@@ -121,7 +121,7 @@ export const InvestigationResultSchema = z.object({
   whyItMatters: z.string().min(1),
   explanation: z.string().min(1),
   /** Two to three concrete items the user should watch next. */
-  whatToMonitor: z.array(z.string().min(1)).min(1).max(5),
+  whatToMonitor: z.array(z.string().min(1)).min(1).max(3),
   /** Per-category findings shown as evidence cards. */
   evidenceSummary: z.array(
     z.object({

@@ -241,7 +241,7 @@
   }
 
   .ticker-price {
-    @apply text-xl font-bold font-mono text-emerald-400 tracking-tight;
+    @apply text-xl font-bold font-mono text-signal-text tracking-tight;
   }
 
   .ticker-meta-row {
@@ -262,19 +262,19 @@
   }
 
   .status-completed {
-    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/30;
+    @apply bg-signal/20 text-ink border-signal/45;
   }
 
   .status-in-progress {
-    @apply bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse;
+    @apply bg-signal/15 text-ink border-signal/40 animate-pulse;
   }
 
   .status-pending {
-    @apply bg-amber-500/10 text-amber-400 border-amber-500/30;
+    @apply bg-ink/10 text-ink/85 border-ink/25;
   }
 
   .status-failed {
-    @apply bg-rose-500/10 text-rose-400 border-rose-500/30;
+    @apply bg-destructive/15 text-destructive border-destructive/50;
   }
 
   .status-none {
@@ -316,33 +316,18 @@
     @apply text-signal-text font-medium underline underline-offset-4 hover:opacity-80 transition-opacity;
   }
 
-  .auth-grid {
-    @apply grid w-full mx-auto max-w-5xl gap-12 lg:gap-16 py-12 px-6;
+  /* Investigation report badges — Butchers Ink palette only. */
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-semibold tracking-wider uppercase;
   }
-
-  .auth-card {
-    @apply w-full max-w-sm mx-auto lg:justify-self-end rounded-2xl border border-border/60 bg-panel/60 p-8 
-           shadow-xl backdrop-blur-md transition-all duration-200 hover:border-border;
+  .badge-signal {
+    @apply border-signal/45 bg-signal/20 text-ink;
   }
-
-  /* Status Badges & Cards */
-  .status-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase tracking-wider font-semibold border;
+  .badge-ink {
+    @apply border-ink/25 bg-ink/10 text-ink;
   }
-  .status-completed {
-    @apply bg-emerald-500/10 text-emerald-400 border-emerald-500/30;
-  }
-  .status-in-progress {
-    @apply bg-blue-500/10 text-blue-400 border-blue-500/30 animate-pulse;
-  }
-  .status-pending {
-    @apply bg-amber-500/10 text-amber-400 border-amber-500/30;
-  }
-  .status-failed {
-    @apply bg-rose-500/10 text-rose-400 border-rose-500/30;
-  }
-  .status-none {
-    @apply bg-muted/40 text-muted-foreground border-border/40;
+  .badge-muted {
+    @apply border-border/60 bg-muted/40 text-muted-foreground;
   }
 }
 

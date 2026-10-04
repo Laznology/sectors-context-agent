@@ -10,6 +10,13 @@ import { ChatPanel } from "@/components/chat-panel";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   toInvestigationData,
   type ConversationMessage,
   type InvestigationDetailResponse,
@@ -97,7 +104,7 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
       signal: controller.signal,
     })
       .then(async (res) => {
-        if (!res.ok) throw new Error(`Gagal memuat percakapan (HTTP ${res.status})`);
+        if (!res.ok) throw new Error(`Could not load the conversation (HTTP ${res.status})`);
         return toInvestigationData((await res.json()) as InvestigationDetailResponse);
       })
       .then((data) => setLoaded({ investigationId, messages: data.conversation }))
@@ -105,7 +112,7 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
         if (controller.signal.aborted) return;
         setLoaded({
           investigationId,
-          error: err instanceof Error ? err.message : "Gagal memuat percakapan.",
+          error: err instanceof Error ? err.message : "Could not load the conversation.",
         });
       });
 
@@ -155,7 +162,7 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
                 Follow-up Chat
               </h2>
               <p className="text-muted-foreground text-[11px] leading-relaxed">
-                Terikat ke investigasi terakhir ticker yang dipilih. Bukan saran investasi.
+                Scoped to the latest investigation of the selected ticker. Not investment advice.
               </p>
             </div>
             <Button
@@ -163,7 +170,7 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Tutup follow-up chat"
+              aria-label="Close follow-up chat"
               onClick={close}
             >
               <X aria-hidden />
@@ -172,55 +179,55 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
 
           {eligible.length === 0 ? (
             <p className="text-muted-foreground text-xs leading-relaxed">
-              Belum ada investigasi yang selesai di watchlist. Jalankan{" "}
-              <strong className="text-foreground">Investigate</strong> pada salah satu ticker, lalu
-              tanya lanjutannya di sini.
+              No completed investigations in your watchlist yet. Run{" "}
+              <strong className="text-foreground">Investigate</strong> on a ticker, then ask your
+              follow-up here.
             </p>
           ) : (
             <>
-              <div className="flex items-end gap-2">
-                <div className="grid flex-1 gap-1">
+              <div className="grid gap-1">
+                <div className="flex items-baseline justify-between gap-2">
                   <Label htmlFor={selectId} className="text-xs font-medium">
                     Ticker
                   </Label>
-                  <select
-                    id={selectId}
-                    value={selected?.ticker ?? ""}
-                    onChange={(event) => selectTicker(event.target.value)}
-                    className="border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 h-8 w-full rounded-lg border bg-transparent px-2 text-sm outline-none focus-visible:ring-3"
-                  >
-                    {eligible.map((item) => (
-                      <option key={item.ticker} value={item.ticker}>
-                        {item.ticker}
-                        {item.companyName ? ` (${item.companyName})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  {selected && (
+                    <Link
+                      to="/investigations/$ticker"
+                      params={{ ticker: selected.ticker }}
+                      className="text-signal-text text-[11px] underline-offset-4 hover:underline"
+                    >
+                      View report
+                    </Link>
+                  )}
                 </div>
-                {selected && (
-                  <Link
-                    to="/investigations/$ticker"
-                    params={{ ticker: selected.ticker }}
-                    className="text-primary text-xs underline-offset-4 hover:underline"
-                  >
-                    Lihat laporan
-                  </Link>
-                )}
+                <Select value={selected?.ticker ?? ""} onValueChange={selectTicker}>
+                  <SelectTrigger id={selectId} aria-label="Select ticker">
+                    <SelectValue placeholder="Select ticker" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eligible.map((item) => (
+                      <SelectItem key={item.ticker} value={item.ticker}>
+                        {item.ticker}
+                        {item.companyName ? ` — ${item.companyName}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {!current ? (
                 <p className="text-primary flex items-center gap-2 text-xs font-mono">
                   <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
-                  Memuat percakapan…
+                  Loading conversation…
                 </p>
               ) : "error" in current ? (
                 <div className="space-y-2">
-                  <p className="text-xs font-mono text-amber-400" role="alert">
+                  <p className="text-destructive font-mono text-xs" role="alert">
                     {current.error}
                   </p>
                   <Button type="button" size="sm" variant="outline" onClick={retry}>
                     <RefreshCw aria-hidden />
-                    Coba lagi
+                    Try again
                   </Button>
                 </div>
               ) : (
@@ -247,18 +254,18 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
           >
             <div className="flex flex-1 flex-col items-start gap-2">
               <p className="text-xs leading-relaxed">
-                Investigasi <strong className="font-semibold">{nudge.ticker}</strong> selesai. Mau
-                tanya lanjutan?
+                The <strong className="font-semibold">{nudge.ticker}</strong> investigation is done.
+                Ask a follow-up?
               </p>
               <Button type="button" size="xs" onClick={() => open(nudge.ticker)}>
-                Tanya
+                Ask
               </Button>
             </div>
             <Button
               type="button"
               variant="ghost"
               size="icon-xs"
-              aria-label={`Abaikan pemberitahuan ${nudge.ticker}`}
+              aria-label={`Dismiss ${nudge.ticker} notification`}
               onClick={markAllSeen}
             >
               <X aria-hidden />
@@ -281,8 +288,10 @@ export function FollowUpChatWidget({ watchlist }: { watchlist: WatchlistItem[] }
           className="rounded-full shadow-lg"
         >
           {isOpen ? <X aria-hidden /> : <MessageSquare aria-hidden />}
-          {isOpen ? "Tutup" : "Follow-up"}
-          {!isOpen && nudge && <span className="sr-only"> (ada investigasi baru selesai)</span>}
+          {isOpen ? "Close" : "Follow-up"}
+          {!isOpen && nudge && (
+            <span className="sr-only"> (a new investigation just finished)</span>
+          )}
         </Button>
         {!isOpen && nudge && (
           <span

@@ -37,3 +37,7 @@ docker-compose.override.yml
 
 # Local agent run state (drafts, plans, evidence, session logs)
 .omo/
+
+# Local agent tooling (not part of the project)
+.agents/
+.freebuff/

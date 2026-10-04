@@ -32,9 +32,9 @@ type Investigation = InvestigationListResponse["investigations"][number];
 
 async function fetchPage(offset: number, signal?: AbortSignal) {
   const res = await fetch(`/api/investigations?limit=${PAGE_SIZE}&offset=${offset}`, { signal });
-  if (!res.ok) throw new Error(`Gagal memuat riwayat investigasi (HTTP ${res.status})`);
+  if (!res.ok) throw new Error(`Could not load history (HTTP ${res.status})`);
   const parsed = InvestigationListResponseSchema.safeParse(await res.json());
-  if (!parsed.success) throw new Error("Respons riwayat dari server tidak sesuai format.");
+  if (!parsed.success) throw new Error("The server returned an unexpected history response.");
   return parsed.data;
 }
 
@@ -63,7 +63,7 @@ function HistoryContent() {
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : "Gagal memuat riwayat investigasi.");
+        setError(err instanceof Error ? err.message : "Could not load history.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -89,7 +89,7 @@ function HistoryContent() {
       });
       setHasMore(page.pagination.hasMore);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat riwayat investigasi.");
+      setError(err instanceof Error ? err.message : "Could not load history.");
     } finally {
       setIsLoadingMore(false);
     }
@@ -106,11 +106,11 @@ function HistoryContent() {
             className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1.5 text-xs"
           >
             <ArrowLeft className="size-3.5" aria-hidden />
-            Kembali ke Dashboard
+            Back to dashboard
           </Link>
-          <h1 className="dashboard-title">Riwayat Investigasi</h1>
+          <h1 className="dashboard-title">Investigation history</h1>
           <p className="text-muted-foreground text-sm">
-            Investigasi sebelumnya, dikelompokkan per ticker. Yang terbaru di atas.
+            Previous investigations, grouped by ticker. Newest first.
           </p>
         </div>
       </header>
@@ -119,28 +119,28 @@ function HistoryContent() {
         <div className="watchlist-empty">
           <p className="text-foreground flex items-center justify-center gap-2 font-medium">
             <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            Memuat riwayat…
+            Loading history…
           </p>
         </div>
       ) : error && items.length === 0 ? (
         <div className="watchlist-empty">
-          <p className="text-xs font-mono text-amber-400" role="alert">
+          <p className="text-destructive font-mono text-xs" role="alert">
             {error}
           </p>
           <Button type="button" size="sm" variant="outline" onClick={retry}>
             <RefreshCw aria-hidden />
-            Coba lagi
+            Try again
           </Button>
         </div>
       ) : groups.length === 0 ? (
         <div className="watchlist-empty">
-          <p className="text-foreground font-medium">Belum ada investigasi.</p>
+          <p className="text-foreground font-medium">No investigations yet.</p>
           <p className="text-xs">
-            Jalankan Investigate pada salah satu ticker di{" "}
+            Run an investigation for a ticker on the{" "}
             <Link to="/" className="text-primary underline-offset-4 hover:underline">
               dashboard
             </Link>
-            , hasilnya akan muncul di sini.
+            and it will show up here.
           </p>
         </div>
       ) : (
@@ -161,7 +161,7 @@ function HistoryContent() {
                   )}
                 </h2>
                 <span className="text-muted-foreground text-xs">
-                  {group.entries.length} investigasi
+                  {group.entries.length} run{group.entries.length === 1 ? "" : "s"}
                 </span>
               </div>
 
@@ -174,7 +174,7 @@ function HistoryContent() {
           ))}
 
           {error && (
-            <p className="text-xs font-mono text-amber-400" role="alert">
+            <p className="text-destructive font-mono text-xs" role="alert">
               {error}
             </p>
           )}
@@ -189,7 +189,7 @@ function HistoryContent() {
                 onClick={() => void loadMore()}
               >
                 {isLoadingMore && <LoaderCircle className="animate-spin" aria-hidden />}
-                {isLoadingMore ? "Memuat…" : "Muat lebih banyak"}
+                {isLoadingMore ? "Loading…" : "Load more"}
               </Button>
             </div>
           )}
@@ -223,7 +223,7 @@ function HistoryRow({ entry, ticker }: { entry: HistoryEntry; ticker: string }) 
       <Link
         to="/investigations/$ticker"
         params={{ ticker: entry.id }}
-        aria-label={`Buka investigasi ${ticker}, ${formatDate(entry.date)}`}
+        aria-label={`Open investigation for ${ticker}, ${formatDate(entry.date)}`}
         className="hover:bg-muted/30 focus-visible:ring-ring/50 -mx-2 flex items-start gap-3 rounded-lg px-2 py-3 outline-none focus-visible:ring-3"
       >
         <div className="min-w-0 flex-1 space-y-1.5">
@@ -250,9 +250,11 @@ function HistoryRow({ entry, ticker }: { entry: HistoryEntry; ticker: string }) 
               {entry.summary}
             </p>
           ) : entry.status === "FAILED" ? (
-            <p className="text-muted-foreground text-xs">Investigasi gagal, tidak ada ringkasan.</p>
+            <p className="text-muted-foreground text-xs">
+              This run failed, so there is no summary.
+            </p>
           ) : entry.status === "IN_PROGRESS" ? (
-            <p className="text-muted-foreground text-xs">Investigasi masih berjalan.</p>
+            <p className="text-muted-foreground text-xs">This run is still in progress.</p>
           ) : null}
         </div>
         <ChevronRight className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />

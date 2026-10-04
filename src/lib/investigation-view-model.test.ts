@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { toInvestigationData } from "./investigation-view-model.ts";
+import { toInvestigationData, toolLabel } from "./investigation-view-model.ts";
 
 describe("toInvestigationData", () => {
   it("maps the API payload into the report view model", () => {
@@ -8,6 +8,7 @@ describe("toInvestigationData", () => {
       ticker: "AAPL",
       question: "Why did AAPL move?",
       status: "completed",
+      statusLabel: "attention",
       driver: "MARKET_DRIVEN",
       confidence: 0.82,
       confidenceReason: "Broad index move",
@@ -27,24 +28,86 @@ describe("toInvestigationData", () => {
     });
 
     expect(result.status).toBe("COMPLETED");
+    expect(result.statusLabel).toBe("ATTENTION");
     expect(result.likelyDriver).toBe("MARKET_DRIVEN");
     expect(result.confidence).toBe("HIGH");
     expect(result.evidence).toEqual({ price_volume: "Volume spike" });
     expect(result.investigationPath).toEqual([
-      { toolName: "get_price_context", reason: "baseline", status: "success", durationMs: 12 },
-      { toolName: "get_market_context", reason: "", status: "failure", durationMs: 0 },
+      {
+        toolName: "get_price_context",
+        label: "Price Context",
+        reason: "baseline",
+        status: "success",
+        findings: ["Volume spike"],
+        durationMs: 12,
+      },
+      {
+        toolName: "get_market_context",
+        label: "Market Context",
+        reason: "",
+        status: "failure",
+        findings: [],
+        durationMs: 0,
+      },
     ]);
+  });
+
+  it("builds ordered evidence cards and prefers the model finding", () => {
+    const result = toInvestigationData({
+      id: "inv-1b",
+      status: "completed",
+      evidence: [{ type: "foreign_flow", summary: "raw tool summary" }],
+      evidenceSummaryJson: [
+        { label: "Foreign Flow", finding: "Inflow strengthened", importance: "high" },
+      ],
+    });
+
+    const foreignFlow = result.evidenceCards.find((card) => card.type === "foreign_flow");
+    expect(foreignFlow).toEqual({
+      type: "foreign_flow",
+      label: "Foreign Flow",
+      finding: "Inflow strengthened",
+      importance: "high",
+    });
+
+    const filing = result.evidenceCards.find((card) => card.type === "filing");
+    expect(filing).toEqual({
+      type: "filing",
+      label: "Filings",
+      finding: null,
+      importance: null,
+    });
+  });
+
+  it("matches model findings written in Bahasa Indonesia", () => {
+    const result = toInvestigationData({
+      id: "inv-1c",
+      status: "completed",
+      evidenceSummaryJson: [
+        { label: "Aliran Asing", finding: "Inflow menguat", importance: "medium" },
+        { label: "Volume", finding: "Volume naik", importance: "high" },
+      ],
+    });
+
+    expect(result.evidenceCards.find((card) => card.type === "foreign_flow")?.finding).toBe(
+      "Inflow menguat",
+    );
+    expect(result.evidenceCards.find((card) => card.type === "price_volume")?.finding).toBe(
+      "Volume naik",
+    );
   });
 
   it("defaults missing fields and grades confidence bands", () => {
     const result = toInvestigationData({ id: "inv-2", status: "pending" });
 
     expect(result.likelyDriver).toBe("UNCLEAR");
+    expect(result.statusLabel).toBeNull();
     expect(result.confidence).toBe("LOW");
     expect(result.status).toBe("IN_PROGRESS");
     expect(result.evidence).toEqual({});
     expect(result.whatToMonitor).toEqual([]);
     expect(result.conversation).toEqual([]);
+    expect(result.investigationPath).toEqual([]);
   });
 
   it("keeps the persisted follow-up conversation in order", () => {
@@ -65,5 +128,16 @@ describe("toInvestigationData", () => {
     const result = toInvestigationData({ id: "inv-3", status: "completed", conversations });
 
     expect(result.conversation).toEqual(conversations);
+  });
+});
+
+describe("toolLabel", () => {
+  it("maps known tools to human-readable labels", () => {
+    expect(toolLabel("get_foreign_flow")).toBe("Foreign Flow");
+    expect(toolLabel("mcp:get_broker_activity")).toBe("Broker Activity");
+  });
+
+  it("title-cases unknown tool names instead of leaking the identifier", () => {
+    expect(toolLabel("get_custom_thing")).toBe("Custom Thing");
   });
 });
