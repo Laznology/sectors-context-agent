@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { UiBlockView } from "@/components/ui-block";
 import { Label } from "@/components/ui/label";
 import { toMessageParts } from "@/lib/conversation-view-model";
+import { INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
 import type { ConversationMessage } from "@/lib/investigation-view-model";
 import { LoaderCircle, MessageSquare, Send, Wrench } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -22,6 +23,7 @@ const ChatResponseSchema = z.object({
     id: z.string(),
     role: z.enum(["user", "assistant"]),
     content: z.string(),
+    uiBlocks: z.unknown().optional(),
     createdAt: z.string(),
   }),
 });
@@ -185,6 +187,10 @@ export function ChatPanel({
           </div>
         )}
       </div>
+
+      <p className="text-muted-foreground font-mono text-[10px] leading-relaxed italic">
+        {INVESTIGATION_DISCLAIMER}
+      </p>
 
       {error && (
         <p

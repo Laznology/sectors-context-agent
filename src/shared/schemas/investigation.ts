@@ -129,3 +129,20 @@ export const ConversationRequestSchema = z.object({
 export type ConversationRequest = z.infer<typeof ConversationRequestSchema>;
 
 export type InvestigationRequest = z.infer<typeof InvestigationRequestSchema>;
+
+/** Display text for the attention state, shared by every surface that shows it. */
+export const STATUS_LABEL_TEXT: Record<InvestigationStatusLabel, string> = {
+  normal: "Normal",
+  attention: "Needs attention",
+  unclear: "Unclear",
+};
+
+/** Display text for each explanatory driver. */
+export const DRIVER_TEXT: Record<InvestigationDriver, string> = {
+  MARKET_DRIVEN: "Market driven",
+  SECTOR_DRIVEN: "Sector driven",
+  FLOW_DRIVEN: "Flow driven",
+  COMPANY_SPECIFIC: "Company specific",
+  MIXED: "Mixed",
+  UNCLEAR: "Unclear",
+};

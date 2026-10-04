@@ -1,3 +1,4 @@
+import { STATUS_LABEL_TEXT } from "../shared/schemas/investigation.ts";
 import type { UiBlock } from "./conversation-view-model.ts";
 import { toTimeline, type TimelineEntry } from "./history-view-model.ts";
 export type LikelyDriver =
@@ -68,7 +69,8 @@ export interface ConversationMessage {
   content: string;
   /** Validated UI blocks attached to this turn; null for plain-text turns. */
   uiBlocks?: unknown;
-  createdAt: string;
+  /** Absent for the derived opening turn, which is not a persisted record. */
+  createdAt?: string;
 }
 
 export interface InvestigationDetailResponse {
@@ -311,7 +313,7 @@ export function toOpeningMessage(data: InvestigationData): ConversationMessage |
     blocks.push({
       type: "metric",
       label: "Attention",
-      value: STATUS_LABEL_TEXT[data.statusLabel],
+      value: STATUS_LABEL_TEXT[data.statusLabel.toLowerCase() as keyof typeof STATUS_LABEL_TEXT],
     });
   }
 
@@ -320,12 +322,5 @@ export function toOpeningMessage(data: InvestigationData): ConversationMessage |
     role: "assistant",
     content: parts.join("\n\n"),
     uiBlocks: blocks.length > 0 ? blocks : undefined,
-    createdAt: new Date(0).toISOString(),
   };
 }
-
-const STATUS_LABEL_TEXT: Record<StatusLabel, string> = {
-  NORMAL: "Normal",
-  ATTENTION: "Needs attention",
-  UNCLEAR: "Unclear",
-};

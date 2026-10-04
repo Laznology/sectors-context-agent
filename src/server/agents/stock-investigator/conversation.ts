@@ -1,7 +1,7 @@
 import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { splitBlocksFromAnswer } from "../../../lib/conversation-view-model.ts";
+import { splitBlocksFromAnswer } from "../../../shared/schemas/ui-blocks.ts";
 import { INVESTIGATION_DISCLAIMER } from "../../../shared/schemas/investigation.ts";
 import { synthesizerModel } from "../../ai/gateway.ts";
 import type {
@@ -76,25 +76,27 @@ export async function runInvestigationConversation(
         "Never invent data, never hide unavailable data, and never produce BUY, SELL, or HOLD advice.",
         "Do not expose private reasoning. Return a concise evidence-grounded answer and state uncertainty.",
         FOLLOW_UP_STYLE_INSTRUCTION,
-        UI_BLOCK_INSTRUCTION,
         OUTPUT_LANGUAGE_INSTRUCTION,
         INVESTIGATION_DISCLAIMER,
       ].join(" "),
-      prompt: JSON.stringify({
-        ticker: input.investigation.ticker,
-        originalQuestion: input.investigation.question,
-        currentInvestigation: {
-          status: input.investigation.status,
-          driver: input.investigation.driver,
-          classification: input.investigation.classification,
-          confidence: input.investigation.confidence,
-          signals: input.investigation.signals,
-          explanation: input.investigation.explanation,
-          evidence: input.investigation.evidence?.map(summarizeEvidence),
-        },
-        conversation: input.investigation.conversations?.slice(-12),
-        followUp: input.message,
-      }),
+      prompt:
+        JSON.stringify({
+          ticker: input.investigation.ticker,
+          originalQuestion: input.investigation.question,
+          currentInvestigation: {
+            status: input.investigation.status,
+            driver: input.investigation.driver,
+            classification: input.investigation.classification,
+            confidence: input.investigation.confidence,
+            signals: input.investigation.signals,
+            explanation: input.investigation.explanation,
+            evidence: input.investigation.evidence?.map(summarizeEvidence),
+          },
+          conversation: input.investigation.conversations?.slice(-12),
+          followUp: input.message,
+        }) +
+        "\n\n" +
+        UI_BLOCK_INSTRUCTION,
       tools,
       stopWhen: isStepCount(4),
       maxRetries: 1,
@@ -269,13 +271,14 @@ function evidenceType(toolName: string): EvidenceItem["type"] {
  * returns outside the list is dropped by `parseUiBlocks`.
  */
 export const UI_BLOCK_INSTRUCTION = [
-  "After the prose, you may attach structured blocks for visualisation.",
+  "After the prose, ALWAYS attach structured blocks when the answer contains any figure, comparison, or trend.",
   'Append them as a single line of JSON in the form {"blocks":[ ... ]} on its own line at the very end.',
+  "For every number you state in the prose, include a matching metric or comparison block.",
   "Allowed block types, and nothing else:",
   '{"type":"metric","label":string,"value":string,"change"?:string,"direction"?:"up"|"down"|"flat"}',
   '{"type":"comparison","title":string,"rows":[{"label":string,"value":string,"note"?:string}]}',
   '{"type":"series","title":string,"unit"?:string,"points":[{"date":string,"value":number}]}',
   '{"type":"driver","driver":"MARKET_DRIVEN"|"SECTOR_DRIVEN"|"FLOW_DRIVEN"|"COMPANY_SPECIFIC"|"MIXED"|"UNCLEAR","confidence":"HIGH"|"MEDIUM"|"LOW"}',
   '{"type":"sources","items":[{"label":string,"detail"?:string}]}',
-  "Every figure in a block must come from the supplied evidence or tool data. If nothing fits, omit the line entirely.",
+  "Every figure in a block must come from the supplied evidence or tool data. Omit the line only when the answer contains no figures at all.",
 ].join(" ");
