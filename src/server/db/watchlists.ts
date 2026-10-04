@@ -68,6 +68,7 @@ export class PostgresWatchlistStore implements WatchlistStore {
         id: investigations.id,
         status: investigations.status,
         statusLabel: investigations.statusLabel,
+        driver: investigations.driver,
         lastClose: sql<
           number | null
         >`(${investigations.signalsJson}->>'latestPrice')::double precision`,
@@ -79,7 +80,19 @@ export class PostgresWatchlistStore implements WatchlistStore {
       .where(eq(investigations.userId, userId))
       .orderBy(investigations.ticker, desc(investigations.createdAt));
 
+    const counts = await this.db
+      .select({
+        ticker: investigations.ticker,
+        runCount: sql<number>`count(*)::int`,
+      })
+      .from(investigations)
+      .where(eq(investigations.userId, userId))
+      .groupBy(investigations.ticker);
+
     const byTicker = Object.fromEntries(latest.map((row) => [row.ticker, row]));
+    const runCountByTicker = Object.fromEntries(
+      counts.map((row) => [row.ticker, Number(row.runCount)]),
+    );
 
     return entries.map((entry) => {
       const investigation = byTicker[entry.ticker];
@@ -89,13 +102,16 @@ export class PostgresWatchlistStore implements WatchlistStore {
         companyName: investigation?.companyName ?? null,
         lastClose: investigation?.lastClose ?? null,
         lastCloseDate: investigation?.asOfDate ?? null,
+        runCount: runCountByTicker[entry.ticker] ?? 0,
         lastInvestigation: investigation
           ? {
               id: investigation.id,
               status: investigation.status,
               statusLabel: investigation.statusLabel ?? null,
+              driver: investigation.driver ?? null,
               createdAt: investigation.createdAt.toISOString(),
               completedAt: investigation.completedAt?.toISOString() ?? null,
+              asOfDate: investigation.asOfDate ?? null,
             }
           : null,
       };

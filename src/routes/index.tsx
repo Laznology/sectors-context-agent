@@ -312,6 +312,30 @@ function AppShell() {
                     <span className="ticker-meta-label">Investigation status</span>
                     <StatusBadge status={item.investigationStatus} />
                   </div>
+
+                  {item.statusLabel && (
+                    <div className="ticker-meta-row">
+                      <span className="ticker-meta-label">Attention</span>
+                      <span className="ticker-meta-value">
+                        {STATUS_LABEL_TEXT[item.statusLabel]}
+                      </span>
+                    </div>
+                  )}
+
+                  {item.driver && (
+                    <div className="ticker-meta-row">
+                      <span className="ticker-meta-label">Latest driver</span>
+                      <span className="ticker-meta-value">{item.driver.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+
+                  <div className="ticker-meta-row">
+                    <span className="ticker-meta-label">Runs</span>
+                    <span className="ticker-meta-value">
+                      {item.runCount === 0 ? "None yet" : item.runCount}
+                    </span>
+                  </div>
+
                   <div className="ticker-meta-row">
                     <span className="ticker-meta-label">Last investigated</span>
                     <span className="ticker-meta-value">{formatDate(item.lastInvestigatedAt)}</span>
@@ -319,12 +343,22 @@ function AppShell() {
 
                   <Button
                     type="button"
-                    variant="outline"
-                    className="w-full mt-3 hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={() => handleInvestigate(item.ticker)}
+                    variant={item.primaryAction === "OPEN_REPORT" ? "outline" : "default"}
+                    className="w-full mt-3 transition-colors"
+                    onClick={() =>
+                      item.primaryAction === "OPEN_REPORT"
+                        ? void navigate({
+                            to: "/investigations/$ticker",
+                            params: { ticker: item.ticker },
+                          })
+                        : void handleInvestigate(item.ticker)
+                    }
                   >
-                    Investigate
+                    {PRIMARY_ACTION_LABEL[item.primaryAction]}
                   </Button>
+                  <p className="text-muted-foreground pt-1 text-center text-[11px] leading-relaxed">
+                    {item.actionReason}
+                  </p>
                 </div>
               </div>
             ))}
@@ -336,6 +370,18 @@ function AppShell() {
     </div>
   );
 }
+
+const PRIMARY_ACTION_LABEL: Record<WatchlistItem["primaryAction"], string> = {
+  INVESTIGATE: "Investigate",
+  OPEN_REPORT: "Open report",
+  UPDATE: "Update",
+};
+
+const STATUS_LABEL_TEXT: Record<NonNullable<WatchlistItem["statusLabel"]>, string> = {
+  NORMAL: "Normal",
+  ATTENTION: "Needs attention",
+  UNCLEAR: "Unclear",
+};
 
 function StatusBadge({ status }: { status: WatchlistItem["investigationStatus"] }) {
   const styles: Record<WatchlistItem["investigationStatus"], string> = {

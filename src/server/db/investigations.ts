@@ -96,12 +96,17 @@ export type WatchlistDashboardItem = {
   readonly companyName: string | null;
   readonly lastClose: number | null;
   readonly lastCloseDate: string | null;
+  /** Total investigations for this ticker, so the card can show its depth. */
+  readonly runCount: number;
   readonly lastInvestigation: {
     readonly id: string;
     readonly status: InvestigationStatus;
     readonly statusLabel: InvestigationStatusLabel | null;
+    readonly driver: InvestigationDriver | null;
     readonly createdAt: string;
     readonly completedAt: string | null;
+    /** Session the run's data covers; drives the stale check. */
+    readonly asOfDate: string | null;
   } | null;
 };
 

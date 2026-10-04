@@ -57,6 +57,46 @@ describe("watchlist API", () => {
     expect(add).not.toHaveBeenCalled();
   });
 
+  it("returns the continuity fields the watchlist cards need", async () => {
+    const dashboard = vi.fn().mockResolvedValue([
+      {
+        ticker: "ANTM",
+        createdAt: "2026-09-21T02:50:22.443Z",
+        companyName: "Aneka Tambang Tbk.",
+        lastClose: 3340,
+        lastCloseDate: "2026-10-02",
+        runCount: 3,
+        lastInvestigation: {
+          id: "inv-1",
+          status: "completed",
+          statusLabel: "attention",
+          driver: "FLOW_DRIVEN",
+          createdAt: "2026-10-02T01:00:00.000Z",
+          completedAt: "2026-10-02T01:05:00.000Z",
+          asOfDate: "2026-10-02",
+        },
+      },
+    ]);
+
+    const response = await buildApp(emptyStore({ dashboard })).request(
+      "http://localhost/?view=dashboard",
+    );
+    const body = (await response.json()) as {
+      watchlist: Array<Record<string, unknown>>;
+    };
+
+    expect(response.status).toBe(200);
+    expect(dashboard).toHaveBeenCalledWith("user-1");
+    expect(body.watchlist[0]).toMatchObject({
+      runCount: 3,
+      lastInvestigation: {
+        driver: "FLOW_DRIVEN",
+        statusLabel: "attention",
+        asOfDate: "2026-10-02",
+      },
+    });
+  });
+
   it("removes a ticker", async () => {
     const remove = vi.fn();
 
