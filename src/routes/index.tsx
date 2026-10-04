@@ -1,4 +1,3 @@
-import { FollowUpChatWidget } from "@/components/follow-up-chat-widget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -365,8 +364,6 @@ function AppShell() {
           </div>
         )}
       </section>
-
-      {!isLoading && <FollowUpChatWidget watchlist={watchlist} />}
     </div>
   );
 }

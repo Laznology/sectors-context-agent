@@ -34,17 +34,13 @@ export function ChatPanel({
   ticker,
   initialMessages,
   isEnabled,
-  variant = "panel",
 }: {
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
   /** Follow-ups are only accepted once the investigation has completed. */
   isEnabled: boolean;
-  /** `panel` sits inline on a page; `widget` fills the floating chat window. */
-  variant?: "panel" | "widget";
 }) {
-  const isWidget = variant === "widget";
   const inputId = useId();
   const titleId = useId();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
@@ -130,11 +126,8 @@ export function ChatPanel({
   }
 
   return (
-    <section
-      className={isWidget ? "flex min-h-0 flex-1 flex-col gap-3" : "dashboard-panel space-y-4"}
-      aria-labelledby={titleId}
-    >
-      <div className={isWidget ? "sr-only" : undefined}>
+    <section className="dashboard-panel space-y-4" aria-labelledby={titleId}>
+      <div>
         <h2 id={titleId} className="panel-title flex items-center gap-2">
           <MessageSquare className="size-4" aria-hidden />
           Follow-up Question
@@ -147,7 +140,7 @@ export function ChatPanel({
 
       <div
         ref={listRef}
-        className={`space-y-3 overflow-y-auto ${isWidget ? "min-h-0 flex-1 pr-1" : "max-h-[28rem] pr-1"}`}
+        className="max-h-[28rem] space-y-3 overflow-y-auto pr-1"
         aria-live="polite"
       >
         {messages.length === 0 && !isSending && (
@@ -185,7 +178,7 @@ export function ChatPanel({
 
       {isEnabled ? (
         <form onSubmit={handleSubmit} className="space-y-2">
-          <Label htmlFor={inputId} className={isWidget ? "sr-only" : "text-xs font-medium"}>
+          <Label htmlFor={inputId} className="text-xs font-medium">
             Question
           </Label>
           <textarea
