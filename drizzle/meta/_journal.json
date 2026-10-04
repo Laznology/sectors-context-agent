@@ -15,6 +15,13 @@
       "when": 1789958770512,
       "tag": "0001_marvelous_ben_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791106989842,
+      "tag": "0002_complete_talisman",
+      "breakpoints": true
     }
   ]
 }

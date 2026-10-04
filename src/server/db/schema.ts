@@ -141,6 +141,8 @@ export const conversations = pgTable(
       .references(() => investigations.id, { onDelete: "cascade" }),
     role: text("role").$type<ConversationRole>().notNull(),
     content: text("content").notNull(),
+    /** Validated UI blocks attached to this turn; null for plain-text turns. */
+    uiBlocks: jsonb("ui_blocks"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
