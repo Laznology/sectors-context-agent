@@ -9,8 +9,8 @@ import {
   type WatchlistItem,
 } from "@/lib/watchlist-view-model";
 import { rootRoute } from "@/routes/__root";
-import { createRoute, Link, useNavigate } from "@tanstack/react-router";
-import { History, LoaderCircle, Trash } from "lucide-react";
+import { createRoute, useNavigate } from "@tanstack/react-router";
+import { LoaderCircle, Trash } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import "@/index.css";
@@ -195,13 +195,6 @@ function AppShell() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to="/history"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
-          >
-            <History className="size-3.5" aria-hidden />
-            History
-          </Link>
           <Button type="button" variant="outline" size="sm" onClick={handleSignOut}>
             Sign out
           </Button>
