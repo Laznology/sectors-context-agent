@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { parseUiBlocks } from "../../lib/conversation-view-model.ts";
 import {
   createInvestigationRoutes,
   InvestigationRunManager,
@@ -112,6 +113,57 @@ describe("investigation API", () => {
     expect(conversation).toHaveBeenCalledWith(
       expect.objectContaining({ message: "Apakah foreign flow berlanjut?" }),
     );
+  });
+
+  it("passes validated UI blocks through the chat response", async () => {
+    const conversation = vi.fn().mockResolvedValue({
+      message: {
+        id: "m-1",
+        role: "assistant",
+        content: "Foreign flow remains relevant.",
+        uiBlocks: [{ type: "metric", label: "Net inflow", value: "Rp 12,4 M" }],
+        createdAt: "2026-10-04T00:00:00.000Z",
+      },
+      toolCalls: [],
+    });
+    const store = {
+      create: vi.fn(),
+      findPrevious: vi.fn(),
+      getDetail: vi.fn().mockResolvedValue({
+        id: "inv-3",
+        ticker: "ANTM",
+        status: "completed",
+        conversations: [],
+        evidence: [],
+        toolCalls: [],
+      }),
+      list: vi.fn(),
+      updateFromState: vi.fn(),
+      appendEvidence: vi.fn(),
+      appendToolCalls: vi.fn(),
+      appendConversation: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+    };
+    const app = createInvestigationRoutes({
+      store,
+      manager: new InvestigationRunManager(async () => undefined),
+      conversation,
+      authMiddleware: (async (_context, next) => next()) satisfies MiddlewareHandler,
+      resolveUserId: () => "user-1",
+    });
+
+    const response = await app.request("http://localhost/inv-3/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "Bagaimana foreign flow?" }),
+    });
+    const body = (await response.json()) as {
+      message: { uiBlocks: Array<{ type: string }> };
+    };
+
+    expect(response.status).toBe(200);
+    expect(parseUiBlocks(body.message.uiBlocks).map((block) => block.type)).toEqual(["metric"]);
   });
 
   it("lists investigations for the authenticated user", async () => {

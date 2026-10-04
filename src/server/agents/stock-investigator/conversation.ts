@@ -1,6 +1,7 @@
 import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { splitBlocksFromAnswer } from "../../../lib/conversation-view-model.ts";
 import { INVESTIGATION_DISCLAIMER } from "../../../shared/schemas/investigation.ts";
 import { synthesizerModel } from "../../ai/gateway.ts";
 import type {
@@ -40,7 +41,8 @@ export const FOLLOW_UP_STYLE_INSTRUCTION = [
   "Then give at most four short supporting points, each on its own line starting with '- '. Each point names the date or period and the figure from the evidence or tool data.",
   "Optionally end with one line that starts with 'Pantau: ' naming what to watch next.",
   "Keep the whole answer under 120 words. Leave out anything that does not help answer the question.",
-  "Plain text only: no markdown headings, tables, bold, italics, code formatting, or emoji. Do not use em dashes or en dashes; use commas or periods.",
+  "Plain text only in the prose: no markdown headings, tables, bold, italics, code formatting, or emoji. Do not use em dashes or en dashes; use commas or periods.",
+  "Structure belongs in the attached uiBlocks, not in the prose. Attach a block only when the evidence supports it, and never invent a figure for one.",
   "Write like a calm analyst: plain words, no hype, no dramatic phrasing.",
   "Do not call the stock bullish or bearish, and do not predict price levels or direction. Describe what the data shows and what to monitor.",
   "If data for part of the question is unavailable, say so in one short sentence.",
@@ -74,6 +76,7 @@ export async function runInvestigationConversation(
         "Never invent data, never hide unavailable data, and never produce BUY, SELL, or HOLD advice.",
         "Do not expose private reasoning. Return a concise evidence-grounded answer and state uncertainty.",
         FOLLOW_UP_STYLE_INSTRUCTION,
+        UI_BLOCK_INSTRUCTION,
         OUTPUT_LANGUAGE_INSTRUCTION,
         INVESTIGATION_DISCLAIMER,
       ].join(" "),
@@ -98,7 +101,9 @@ export async function runInvestigationConversation(
       abortSignal: input.signal,
     });
 
-    const answer = toPlainAnswer(response.text);
+    const { prose, blocks } = splitBlocksFromAnswer(response.text);
+
+    const answer = toPlainAnswer(prose);
     if (!answer) throw new Error("Conversation model returned an empty response");
 
     const toolCalls = collectMcpToolCalls(response.toolCalls, response.toolResults);
@@ -111,6 +116,7 @@ export async function runInvestigationConversation(
       input.investigation.id,
       "assistant",
       answer,
+      blocks.length > 0 ? blocks : undefined,
     );
     return { message: assistantMessage, toolCalls };
   } finally {
@@ -255,3 +261,21 @@ function evidenceType(toolName: string): EvidenceItem["type"] {
   if (normalized.includes("price") || normalized.includes("daily")) return "price_volume";
   return "company";
 }
+
+/**
+ * The closed block vocabulary, described for the model.
+ *
+ * The model picks from this list; it never authors components. Anything it
+ * returns outside the list is dropped by `parseUiBlocks`.
+ */
+export const UI_BLOCK_INSTRUCTION = [
+  "After the prose, you may attach structured blocks for visualisation.",
+  'Append them as a single line of JSON in the form {"blocks":[ ... ]} on its own line at the very end.',
+  "Allowed block types, and nothing else:",
+  '{"type":"metric","label":string,"value":string,"change"?:string,"direction"?:"up"|"down"|"flat"}',
+  '{"type":"comparison","title":string,"rows":[{"label":string,"value":string,"note"?:string}]}',
+  '{"type":"series","title":string,"unit"?:string,"points":[{"date":string,"value":number}]}',
+  '{"type":"driver","driver":"MARKET_DRIVEN"|"SECTOR_DRIVEN"|"FLOW_DRIVEN"|"COMPANY_SPECIFIC"|"MIXED"|"UNCLEAR","confidence":"HIGH"|"MEDIUM"|"LOW"}',
+  '{"type":"sources","items":[{"label":string,"detail"?:string}]}',
+  "Every figure in a block must come from the supplied evidence or tool data. If nothing fits, omit the line entirely.",
+].join(" ");

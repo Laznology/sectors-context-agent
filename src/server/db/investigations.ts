@@ -118,6 +118,8 @@ export type ConversationRecord = {
   readonly id: string;
   readonly role: "user" | "assistant";
   readonly content: string;
+  /** Validated UI blocks attached to this turn; null for plain-text turns. */
+  readonly uiBlocks?: unknown;
   readonly createdAt: string;
 };
 
@@ -156,6 +158,7 @@ export interface InvestigationStore {
     investigationId: string,
     role: ConversationRecord["role"],
     content: string,
+    uiBlocks?: unknown,
   ): Promise<ConversationRecord>;
   complete(investigationId: string, completion: InvestigationCompletion): Promise<void>;
   fail(investigationId: string, errorMessage: string): Promise<void>;
@@ -361,6 +364,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
         id: item.id,
         role: item.role,
         content: item.content,
+        uiBlocks: item.uiBlocks ?? null,
         createdAt: item.createdAt.toISOString(),
       })),
       runs: await this.list(userId, { limit: 50, offset: 0 }, { ticker: row.ticker }),
@@ -415,16 +419,18 @@ export class PostgresInvestigationStore implements InvestigationStore {
     investigationId: string,
     role: ConversationRecord["role"],
     content: string,
+    uiBlocks?: unknown,
   ): Promise<ConversationRecord> {
     const [row] = await this.db
       .insert(conversations)
-      .values({ investigationId, role, content })
+      .values({ investigationId, role, content, uiBlocks })
       .returning();
     if (!row) throw new Error("Failed to persist conversation message");
     return {
       id: row.id,
       role: row.role,
       content: row.content,
+      uiBlocks: row.uiBlocks ?? null,
       createdAt: row.createdAt.toISOString(),
     };
   }

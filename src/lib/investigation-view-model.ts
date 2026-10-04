@@ -65,6 +65,8 @@ export interface ConversationMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** Validated UI blocks attached to this turn; null for plain-text turns. */
+  uiBlocks?: unknown;
   createdAt: string;
 }
 

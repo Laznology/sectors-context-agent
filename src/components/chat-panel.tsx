@@ -7,7 +7,9 @@
  * investigation evidence, and may call Sectors tools for fresh data.
  */
 import { Button } from "@/components/ui/button";
+import { UiBlockView } from "@/components/ui-block";
 import { Label } from "@/components/ui/label";
+import { toMessageParts } from "@/lib/conversation-view-model";
 import type { ConversationMessage } from "@/lib/investigation-view-model";
 import { LoaderCircle, MessageSquare, Send, Wrench } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -231,6 +233,8 @@ export function ChatPanel({
 
 function ChatBubble({ message }: { message: ConversationMessage }) {
   const isUser = message.role === "user";
+  const parts = toMessageParts(message);
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
@@ -240,10 +244,18 @@ function ChatBubble({ message }: { message: ConversationMessage }) {
             : "border-border/60 bg-muted/20 text-foreground/90"
         }`}
       >
-        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+        <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
           {isUser ? "You" : "Agent"}
         </p>
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        {parts.map((part, index) =>
+          part.kind === "text" ? (
+            <p key={index} className="whitespace-pre-wrap">
+              {part.text}
+            </p>
+          ) : (
+            <UiBlockView key={index} block={part.block} />
+          ),
+        )}
       </div>
     </div>
   );
