@@ -141,3 +141,46 @@ describe("toolLabel", () => {
     expect(toolLabel("get_custom_thing")).toBe("Custom Thing");
   });
 });
+
+describe("toInvestigationData timeline", () => {
+  it("derives the ticker's timeline and marks the shown run current", () => {
+    const result = toInvestigationData({
+      id: "new",
+      ticker: "ANTM",
+      status: "completed",
+      runs: [
+        {
+          id: "old",
+          ticker: "ANTM",
+          status: "completed",
+          driver: "MARKET_DRIVEN",
+          confidence: 0.5,
+          whatChanged: "Moved with the market.",
+          changesSincePrevious: null,
+          createdAt: "2026-09-29T01:00:00Z",
+          completedAt: "2026-09-29T01:05:00Z",
+        },
+        {
+          id: "new",
+          ticker: "ANTM",
+          status: "completed",
+          driver: "FLOW_DRIVEN",
+          confidence: 0.8,
+          whatChanged: "Foreign inflow strengthened.",
+          changesSincePrevious: "Foreign inflow continued.",
+          createdAt: "2026-10-02T01:00:00Z",
+          completedAt: "2026-10-02T01:05:00Z",
+        },
+      ],
+    });
+
+    expect(result.timeline.map((entry) => entry.id)).toEqual(["new", "old"]);
+    expect(result.timeline[0].isCurrent).toBe(true);
+    expect(result.timeline[0].delta).toBe("Foreign inflow continued.");
+    expect(result.timeline[1].delta).toBeNull();
+  });
+
+  it("yields an empty timeline when the payload carries no runs", () => {
+    expect(toInvestigationData({ id: "solo", status: "completed" }).timeline).toEqual([]);
+  });
+});

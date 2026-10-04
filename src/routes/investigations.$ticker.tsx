@@ -1,6 +1,7 @@
 import { ChatPanel } from "@/components/chat-panel";
 import { EvidencePanel } from "@/components/evidence-panel";
 import { InvestigationPath } from "@/components/investigation-path";
+import { InvestigationTimeline } from "@/components/investigation-timeline";
 import { Button } from "@/components/ui/button";
 import {
   toInvestigationData,
@@ -282,6 +283,22 @@ function InvestigationContent() {
             <section className="space-y-4">
               <h2 className="font-serif text-2xl font-bold tracking-tight">Evidence Cards</h2>
               <EvidencePanel cards={summaryData.evidenceCards} />
+            </section>
+          )}
+
+          {summaryData.timeline.length > 0 && (
+            <section className="dashboard-panel space-y-4">
+              <div>
+                <h2 className="panel-title">Timeline</h2>
+                <p className="panel-subtitle">
+                  Previous runs for this ticker, newest first, with what changed since the run
+                  before.
+                </p>
+              </div>
+              <InvestigationTimeline
+                entries={summaryData.timeline}
+                ticker={summaryData.ticker || ticker}
+              />
             </section>
           )}
 

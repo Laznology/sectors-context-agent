@@ -1,3 +1,4 @@
+import { toTimeline, type TimelineEntry } from "./history-view-model.ts";
 export type LikelyDriver =
   | "MARKET_DRIVEN"
   | "SECTOR_DRIVEN"
@@ -54,6 +55,8 @@ export interface InvestigationData {
   confidenceReason: string;
   whatToMonitor: string[];
   investigationPath: InvestigationPathStep[];
+  /** Every run for this ticker, newest first, for the workspace Timeline. */
+  timeline: TimelineEntry[];
   previousComparison: string;
   conversation: ConversationMessage[];
 }
@@ -92,6 +95,21 @@ export interface InvestigationDetailResponse {
       }[]
     | null;
   conversations?: ConversationMessage[] | null;
+  runs?: RawRun[] | null;
+}
+
+/** One run of this ticker as the API returns it, before Timeline derivation. */
+interface RawRun {
+  id: string;
+  ticker: string;
+  companyName?: string | null;
+  status: string;
+  driver?: LikelyDriver | null;
+  confidence?: number | null;
+  whatChanged?: string | null;
+  changesSincePrevious?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
 }
 
 interface EvidenceSummary {
@@ -194,6 +212,7 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
     confidenceReason: detail.confidenceReason ?? "",
     whatToMonitor: detail.whatToMonitorJson ?? [],
     investigationPath: toInvestigationPath(detail),
+    timeline: toTimeline(detail.runs ?? [], detail.ticker ?? "", detail.id),
     previousComparison: detail.changesSincePrevious ?? "",
     conversation: detail.conversations ?? [],
   };

@@ -64,6 +64,8 @@ export type InvestigationDetail = {
   readonly evidence?: readonly EvidenceItem[];
   readonly toolCalls?: readonly ToolCallRecord[];
   readonly conversations?: readonly ConversationRecord[];
+  /** Every run for this ticker, newest first; the workspace derives the Timeline. */
+  readonly runs?: readonly InvestigationSummary[];
 };
 
 /** One evidence card shown in the investigation UI. */
@@ -85,6 +87,8 @@ export type InvestigationSummary = {
   readonly confidence?: number | null;
   /** One-line "what changed" from the synthesis, for history rows. */
   readonly whatChanged?: string | null;
+  /** Change since the prior run for this ticker, when synthesis recorded one. */
+  readonly changesSincePrevious?: string | null;
   readonly createdAt: string;
   readonly completedAt?: string | null;
 };
@@ -221,6 +225,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
   async list(
     userId: string,
     page: { limit: number; offset: number } = { limit: 50, offset: 0 },
+    options: { ticker?: string } = {},
   ): Promise<InvestigationSummary[]> {
     const rows = await this.db
       .select({
@@ -233,11 +238,16 @@ export class PostgresInvestigationStore implements InvestigationStore {
         driver: investigations.driver,
         confidence: investigations.confidence,
         whatChanged: investigations.whatChanged,
+        changesSincePrevious: investigations.changesSincePrevious,
         createdAt: investigations.createdAt,
         completedAt: investigations.completedAt,
       })
       .from(investigations)
-      .where(eq(investigations.userId, userId))
+      .where(
+        options.ticker
+          ? and(eq(investigations.userId, userId), eq(investigations.ticker, options.ticker))
+          : eq(investigations.userId, userId),
+      )
       .orderBy(desc(investigations.createdAt))
       .limit(page.limit)
       .offset(page.offset);
@@ -252,6 +262,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
       driver: row.driver ?? null,
       confidence: row.confidence ?? null,
       whatChanged: row.whatChanged ?? null,
+      changesSincePrevious: row.changesSincePrevious ?? null,
       createdAt: row.createdAt.toISOString(),
       completedAt: row.completedAt?.toISOString() ?? null,
     }));
@@ -348,6 +359,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
         content: item.content,
         createdAt: item.createdAt.toISOString(),
       })),
+      runs: await this.list(userId, { limit: 50, offset: 0 }, { ticker: row.ticker }),
     };
   }
 
