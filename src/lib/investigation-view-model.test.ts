@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
+import { parseUiBlocks } from "./conversation-view-model.ts";
 import { toInvestigationData, toolLabel, toOpeningMessage } from "./investigation-view-model.ts";
 
 describe("toInvestigationData", () => {
@@ -222,5 +223,70 @@ describe("toOpeningMessage", () => {
     const data = toInvestigationData({ id: "inv-run", status: "pending" });
 
     expect(toOpeningMessage(data)).toBeNull();
+  });
+
+  it("attaches the driver and the key figures as blocks", () => {
+    const data = toInvestigationData({
+      id: "inv-blocks",
+      ticker: "ANTM",
+      status: "completed",
+      driver: "FLOW_DRIVEN",
+      confidence: 0.8,
+      whatChanged: "Foreign inflow strengthened.",
+      whyItMatters: "Participation shifted.",
+    });
+
+    const message = toOpeningMessage(data);
+    const types = parseUiBlocks(message?.uiBlocks).map((block) => block.type);
+
+    expect(types).toContain("driver");
+    expect(types).toContain("metric");
+  });
+
+  it("includes the attention state as a metric block", () => {
+    const data = toInvestigationData({
+      id: "inv-attention",
+      ticker: "ANTM",
+      status: "completed",
+      statusLabel: "attention",
+      driver: "MIXED",
+      confidence: 0.5,
+      whatChanged: "Moved.",
+      whyItMatters: "Matters.",
+    });
+
+    const message = toOpeningMessage(data);
+    const metric = parseUiBlocks(message?.uiBlocks).find((block) => block.type === "metric");
+
+    expect(metric).toBeDefined();
+  });
+
+  it("omits the driver block when the result has no driver", () => {
+    const data = toInvestigationData({
+      id: "inv-nodriver",
+      ticker: "ANTM",
+      status: "completed",
+      whatChanged: "Moved.",
+      whyItMatters: "Matters.",
+    });
+
+    const message = toOpeningMessage(data);
+    const types = parseUiBlocks(message?.uiBlocks).map((block) => block.type);
+
+    expect(types).not.toContain("driver");
+  });
+
+  it("keeps the plain-text part readable on its own", () => {
+    const data = toInvestigationData({
+      id: "inv-text",
+      ticker: "ANTM",
+      status: "completed",
+      driver: "FLOW_DRIVEN",
+      confidence: 0.8,
+      whatChanged: "Foreign inflow strengthened.",
+      whyItMatters: "Participation shifted.",
+    });
+
+    expect(toOpeningMessage(data)?.content).toContain("Foreign inflow strengthened.");
   });
 });

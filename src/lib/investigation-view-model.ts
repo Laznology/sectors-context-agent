@@ -1,3 +1,4 @@
+import type { UiBlock } from "./conversation-view-model.ts";
 import { toTimeline, type TimelineEntry } from "./history-view-model.ts";
 export type LikelyDriver =
   | "MARKET_DRIVEN"
@@ -302,10 +303,29 @@ export function toOpeningMessage(data: InvestigationData): ConversationMessage |
     `Driver: ${data.likelyDriver.replace(/_/g, " ")}. Confidence: ${data.confidence}.`,
   ].filter((part) => part.trim().length > 0);
 
+  const blocks: UiBlock[] = [{ type: "metric", label: "Confidence", value: data.confidence }];
+  if (data.likelyDriver !== "UNCLEAR") {
+    blocks.push({ type: "driver", driver: data.likelyDriver, confidence: data.confidence });
+  }
+  if (data.statusLabel) {
+    blocks.push({
+      type: "metric",
+      label: "Attention",
+      value: STATUS_LABEL_TEXT[data.statusLabel],
+    });
+  }
+
   return {
     id: `opening-${data.id}`,
     role: "assistant",
     content: parts.join("\n\n"),
-    createdAt: data.id ? new Date(0).toISOString() : new Date().toISOString(),
+    uiBlocks: blocks.length > 0 ? blocks : undefined,
+    createdAt: new Date(0).toISOString(),
   };
 }
+
+const STATUS_LABEL_TEXT: Record<StatusLabel, string> = {
+  NORMAL: "Normal",
+  ATTENTION: "Needs attention",
+  UNCLEAR: "Unclear",
+};
