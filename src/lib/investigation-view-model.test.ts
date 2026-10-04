@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { toInvestigationData, toolLabel } from "./investigation-view-model.ts";
+import { toInvestigationData, toolLabel, toOpeningMessage } from "./investigation-view-model.ts";
 
 describe("toInvestigationData", () => {
   it("maps the API payload into the report view model", () => {
@@ -194,5 +194,33 @@ describe("toInvestigationData timeline", () => {
 
   it("yields an empty timeline when the payload carries no runs", () => {
     expect(toInvestigationData({ id: "solo", status: "completed" }).timeline).toEqual([]);
+  });
+});
+
+describe("toOpeningMessage", () => {
+  it("summarises a completed result as the thread's first turn", () => {
+    const data = toInvestigationData({
+      id: "inv-open",
+      ticker: "ANTM",
+      status: "completed",
+      driver: "FLOW_DRIVEN",
+      confidence: 0.8,
+      whatChanged: "Foreign inflow strengthened.",
+      whyItMatters: "Participation shifted.",
+    });
+
+    const message = toOpeningMessage(data);
+
+    expect(message?.role).toBe("assistant");
+    expect(message?.content).toContain("Foreign inflow strengthened.");
+    expect(message?.content).toContain("Participation shifted.");
+    expect(message?.content).toContain("FLOW DRIVEN");
+    expect(message?.content).toContain("HIGH");
+  });
+
+  it("returns null when there is no completed result to open with", () => {
+    const data = toInvestigationData({ id: "inv-run", status: "pending" });
+
+    expect(toOpeningMessage(data)).toBeNull();
   });
 });

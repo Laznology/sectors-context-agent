@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   toInvestigationData,
+  toOpeningMessage,
   toolLabel,
   type InvestigationData,
   type InvestigationDetailResponse,
@@ -289,12 +290,12 @@ function InvestigationContent() {
       )}
 
       {summaryData && hasReport && (
-        <div className="animate-in fade-in duration-500">
+        <div className="animate-in fade-in flex min-h-0 flex-col gap-4 duration-500">
           <div className="dashboard-panel flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="panel-title">Report</h2>
+              <h2 className="panel-title">Conversation</h2>
               <p className="panel-subtitle">
-                The full evidence, investigation path, and Timeline for this ticker.
+                Ask about this ticker's movement. Answers stay grounded in the collected evidence.
               </p>
             </div>
             <Button type="button" variant="outline" onClick={() => setReportOpen(true)}>
@@ -303,11 +304,27 @@ function InvestigationContent() {
             </Button>
           </div>
 
-          {summaryData.status === "COMPLETED" && (
+          {summaryData.status === "FAILED" ? (
+            <div className="dashboard-panel space-y-4">
+              <p className="text-destructive text-sm leading-relaxed">
+                This investigation did not complete, so there is no result to discuss yet.
+              </p>
+              <Button
+                type="button"
+                onClick={() => void handleReinvestigate(summaryData.ticker || ticker)}
+                className="w-fit"
+              >
+                <RefreshCw aria-hidden />
+                Run it again
+              </Button>
+            </div>
+          ) : (
             <ChatPanel
               key={`${summaryData.id}-${summaryData.status}`}
+              variant="thread"
               investigationId={summaryData.id}
               ticker={summaryData.ticker || ticker}
+              openingMessage={toOpeningMessage(summaryData)}
               initialMessages={summaryData.conversation}
               isEnabled
             />

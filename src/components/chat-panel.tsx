@@ -33,17 +33,25 @@ export function ChatPanel({
   investigationId,
   ticker,
   initialMessages,
+  openingMessage,
   isEnabled,
+  variant = "panel",
 }: {
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
+  /** The investigation result, shown as the thread's first assistant turn. */
+  openingMessage?: ConversationMessage | null;
   /** Follow-ups are only accepted once the investigation has completed. */
   isEnabled: boolean;
+  /** `panel` sits in a page section; `thread` fills a full-height column. */
+  variant?: "panel" | "thread";
 }) {
   const inputId = useId();
   const titleId = useId();
-  const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ConversationMessage[]>(
+    openingMessage ? [openingMessage, ...initialMessages] : initialMessages,
+  );
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +134,12 @@ export function ChatPanel({
   }
 
   return (
-    <section className="dashboard-panel space-y-4" aria-labelledby={titleId}>
+    <section
+      className={
+        variant === "thread" ? "flex min-h-0 flex-1 flex-col gap-4" : "dashboard-panel space-y-4"
+      }
+      aria-labelledby={titleId}
+    >
       <div>
         <h2 id={titleId} className="panel-title flex items-center gap-2">
           <MessageSquare className="size-4" aria-hidden />
@@ -140,7 +153,11 @@ export function ChatPanel({
 
       <div
         ref={listRef}
-        className="max-h-[28rem] space-y-3 overflow-y-auto pr-1"
+        className={
+          variant === "thread"
+            ? "min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+            : "max-h-[28rem] space-y-3 overflow-y-auto pr-1"
+        }
         aria-live="polite"
       >
         {messages.length === 0 && !isSending && (
