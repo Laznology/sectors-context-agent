@@ -9,7 +9,7 @@ import {
   type WatchlistItem,
 } from "@/lib/watchlist-view-model";
 import { rootRoute } from "@/routes/__root";
-import { createRoute, useNavigate } from "@tanstack/react-router";
+import { createRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle, Trash } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -268,75 +268,56 @@ function AppShell() {
             <p className="text-xs">Add a ticker using the form above to start monitoring.</p>
           </div>
         ) : (
-          <div className="watchlist-grid">
+          <ul className="watchlist-list">
             {watchlist.map((item) => (
-              <div key={item.ticker} className="ticker-card">
-                {/* Header Card */}
-                <div className="flex justify-between items-start gap-3">
+              <li key={item.ticker} className="ticker-row">
+                <Link
+                  to="/investigations/$ticker"
+                  params={{ ticker: item.ticker }}
+                  aria-label={`Open the ${item.ticker} conversation`}
+                  className="ticker-row-main"
+                >
                   <div className="min-w-0">
                     <h3 className="ticker-symbol">{item.ticker}</h3>
                     <p className="ticker-company">{item.companyName || "—"}</p>
                   </div>
-                  <div className="flex items-start gap-1.5 shrink-0">
+
+                  <dl className="ticker-row-meta">
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        <StatusBadge status={item.investigationStatus} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Attention</dt>
+                      <dd>{item.statusLabel ? STATUS_LABEL_TEXT[item.statusLabel] : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Driver</dt>
+                      <dd>{item.driver ? item.driver.replace(/_/g, " ") : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Runs</dt>
+                      <dd>{item.runCount === 0 ? "None yet" : item.runCount}</dd>
+                    </div>
+                    <div>
+                      <dt>Last run</dt>
+                      <dd>{formatDate(item.lastInvestigatedAt)}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="ticker-row-price">
                     <span className="ticker-price">{formatCurrency(item.latestClose)}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Remove ${item.ticker} from watchlist`}
-                      title={`Remove ${item.ticker}`}
-                      disabled={deletingTicker === item.ticker}
-                      onClick={() => handleRemoveTicker(item.ticker)}
-                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                    >
-                      {deletingTicker === item.ticker ? (
-                        <LoaderCircle className="animate-spin" aria-hidden />
-                      ) : (
-                        <Trash aria-hidden />
-                      )}
-                    </Button>
+                    <span className="text-muted-foreground text-[11px]">{item.actionReason}</span>
                   </div>
-                </div>
+                </Link>
 
-                {/* Details & Status */}
-                <div className="border-t border-border/40 pt-3 space-y-2">
-                  <div className="ticker-meta-row">
-                    <span className="ticker-meta-label">Investigation status</span>
-                    <StatusBadge status={item.investigationStatus} />
-                  </div>
-
-                  {item.statusLabel && (
-                    <div className="ticker-meta-row">
-                      <span className="ticker-meta-label">Attention</span>
-                      <span className="ticker-meta-value">
-                        {STATUS_LABEL_TEXT[item.statusLabel]}
-                      </span>
-                    </div>
-                  )}
-
-                  {item.driver && (
-                    <div className="ticker-meta-row">
-                      <span className="ticker-meta-label">Latest driver</span>
-                      <span className="ticker-meta-value">{item.driver.replace(/_/g, " ")}</span>
-                    </div>
-                  )}
-
-                  <div className="ticker-meta-row">
-                    <span className="ticker-meta-label">Runs</span>
-                    <span className="ticker-meta-value">
-                      {item.runCount === 0 ? "None yet" : item.runCount}
-                    </span>
-                  </div>
-
-                  <div className="ticker-meta-row">
-                    <span className="ticker-meta-label">Last investigated</span>
-                    <span className="ticker-meta-value">{formatDate(item.lastInvestigatedAt)}</span>
-                  </div>
-
+                <div className="ticker-row-actions">
                   <Button
                     type="button"
+                    size="sm"
                     variant={item.primaryAction === "OPEN_REPORT" ? "outline" : "default"}
-                    className="w-full mt-3 transition-colors"
                     onClick={() =>
                       item.primaryAction === "OPEN_REPORT"
                         ? void navigate({
@@ -348,13 +329,26 @@ function AppShell() {
                   >
                     {PRIMARY_ACTION_LABEL[item.primaryAction]}
                   </Button>
-                  <p className="text-muted-foreground pt-1 text-center text-[11px] leading-relaxed">
-                    {item.actionReason}
-                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove ${item.ticker} from watchlist`}
+                    title={`Remove ${item.ticker}`}
+                    disabled={deletingTicker === item.ticker}
+                    onClick={() => handleRemoveTicker(item.ticker)}
+                    className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  >
+                    {deletingTicker === item.ticker ? (
+                      <LoaderCircle className="animate-spin" aria-hidden />
+                    ) : (
+                      <Trash aria-hidden />
+                    )}
+                  </Button>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </section>
     </div>

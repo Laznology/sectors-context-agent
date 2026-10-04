@@ -222,14 +222,43 @@
     @apply text-xs text-muted-foreground mt-0.5;
   }
 
-  /* Watchlist Grid & Cards */
-  .watchlist-grid {
-    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5;
+  /* Watchlist list */
+  .watchlist-list {
+    @apply divide-border/40 border-border/60 bg-card/60 divide-y overflow-hidden rounded-xl border;
   }
 
-  .ticker-card {
-    @apply flex flex-col justify-between rounded-xl border border-border/60 bg-card/90 p-5 
-           shadow-sm hover:shadow-md hover:border-primary/40 transition-all duration-200 gap-4;
+  .ticker-row {
+    @apply hover:bg-muted/25 flex items-center gap-4 px-4 py-3 transition-colors;
+  }
+
+  .ticker-row-main {
+    @apply focus-visible:ring-ring/50 grid flex-1 grid-cols-2 items-center gap-x-4 gap-y-2 outline-none focus-visible:ring-3;
+  }
+
+  @media (width >= 48rem) {
+    .ticker-row-main {
+      grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) auto;
+    }
+  }
+
+  .ticker-row-meta {
+    @apply text-muted-foreground hidden items-center gap-5 text-[11px] md:flex;
+  }
+
+  .ticker-row-meta dt {
+    @apply font-mono tracking-wider uppercase;
+  }
+
+  .ticker-row-meta dd {
+    @apply text-foreground mt-0.5 text-xs;
+  }
+
+  .ticker-row-price {
+    @apply flex flex-col items-end gap-0.5 text-right;
+  }
+
+  .ticker-row-actions {
+    @apply flex shrink-0 items-center gap-1.5;
   }
 
   .ticker-symbol {
@@ -242,18 +271,6 @@
 
   .ticker-price {
     @apply text-xl font-bold font-mono text-signal-text tracking-tight;
-  }
-
-  .ticker-meta-row {
-    @apply flex justify-between items-center text-xs py-1;
-  }
-
-  .ticker-meta-label {
-    @apply text-muted-foreground font-medium;
-  }
-
-  .ticker-meta-value {
-    @apply font-mono text-foreground font-medium;
   }
 
   /* Custom Status Badges */
