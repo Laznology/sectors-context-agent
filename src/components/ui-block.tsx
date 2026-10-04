@@ -1,16 +1,8 @@
+import { DRIVER_TEXT } from "@/shared/schemas/investigation.ts";
 import type { UiBlock } from "@/lib/conversation-view-model";
 import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 
 const DIRECTION_ICON = { up: ArrowUp, down: ArrowDown, flat: ArrowRight } as const;
-
-const DRIVER_TEXT: Record<string, string> = {
-  MARKET_DRIVEN: "Market driven",
-  SECTOR_DRIVEN: "Sector driven",
-  FLOW_DRIVEN: "Flow driven",
-  COMPANY_SPECIFIC: "Company specific",
-  MIXED: "Mixed",
-  UNCLEAR: "Unclear",
-};
 
 export function UiBlockView({ block }: { block: UiBlock }) {
   switch (block.type) {
@@ -124,7 +116,7 @@ function DriverBlock({ block }: { block: Extract<UiBlock, { type: "driver" }> })
         Likely driver
       </p>
       <p className="mt-1 flex flex-wrap items-center gap-2">
-        <span className="badge badge-signal">{DRIVER_TEXT[block.driver] ?? block.driver}</span>
+        <span className="badge badge-signal">{DRIVER_TEXT[block.driver]}</span>
         <span className="badge badge-ink">{block.confidence} confidence</span>
       </p>
     </Frame>

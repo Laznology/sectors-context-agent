@@ -269,10 +269,10 @@ function InvestigationContent() {
           </p>
           <Button
             type="button"
-            onClick={() => void navigate({ to: "/" })}
+            onClick={() => void handleReinvestigate(ticker)}
             className="mx-auto w-fit"
           >
-            Go to the watchlist to investigate
+            Investigate {ticker}
           </Button>
         </div>
       )}

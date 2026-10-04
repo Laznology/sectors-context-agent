@@ -193,3 +193,21 @@ describe("richer blocks", () => {
     ]);
   });
 });
+
+describe("live chat response", () => {
+  it("keeps blocks that arrive on a freshly received answer", () => {
+    const liveResponse = {
+      message: {
+        id: "m-1",
+        role: "assistant" as const,
+        content: "Net inflow continued.",
+        uiBlocks: [{ type: "metric", label: "Net inflow", value: "Rp 12,4 M" }],
+        createdAt: "2026-10-04T00:00:00.000Z",
+      },
+    };
+
+    const parts = toMessageParts(liveResponse.message);
+
+    expect(parts.map((part) => part.kind)).toEqual(["text", "block"]);
+  });
+});

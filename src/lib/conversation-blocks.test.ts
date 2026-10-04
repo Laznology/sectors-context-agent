@@ -35,3 +35,34 @@ describe("splitBlocksFromAnswer", () => {
     expect(blocks).toEqual([]);
   });
 });
+
+describe("splitBlocksFromAnswer robustness", () => {
+  it("keeps trailing prose out of the blocks line", () => {
+    const raw =
+      'Answer.\n{"blocks":[{"type":"metric","label":"Close","value":"3,140"}]}\nHope this helps.';
+    const { prose, blocks } = splitBlocksFromAnswer(raw);
+
+    expect(prose).not.toContain("blocks");
+    expect(prose).toContain("Answer.");
+    expect(prose).toContain("Hope this helps.");
+    expect(blocks).toHaveLength(1);
+  });
+
+  it("does not truncate on an earlier mention of blocks in prose", () => {
+    const raw =
+      'The blocks field is not used here.\nMore prose.\n{"blocks":[{"type":"metric","label":"Close","value":"3,140"}]}';
+    const { prose, blocks } = splitBlocksFromAnswer(raw);
+
+    expect(prose).toContain("The blocks field is not used here.");
+    expect(prose).toContain("More prose.");
+    expect(blocks).toHaveLength(1);
+  });
+
+  it("treats an unrelated JSON line as prose", () => {
+    const raw = 'Answer.\n{"other":1}';
+    const { prose, blocks } = splitBlocksFromAnswer(raw);
+
+    expect(prose).toContain("Answer.");
+    expect(blocks).toEqual([]);
+  });
+});
