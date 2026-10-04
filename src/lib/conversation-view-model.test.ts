@@ -105,3 +105,91 @@ describe("toMessageParts", () => {
     expect(toMessageParts({ content: "" })).toEqual([]);
   });
 });
+
+describe("richer blocks", () => {
+  it("parses a comparison with its rows and optional notes", () => {
+    const [block] = parseUiBlocks([
+      {
+        type: "comparison",
+        title: "Peers",
+        rows: [
+          { label: "ANTM", value: "+4.1%", note: "outperformed" },
+          { label: "IHSG", value: "+0.2%" },
+        ],
+      },
+    ]);
+
+    expect(block).toEqual({
+      type: "comparison",
+      title: "Peers",
+      rows: [
+        { label: "ANTM", value: "+4.1%", note: "outperformed" },
+        { label: "IHSG", value: "+0.2%" },
+      ],
+    });
+  });
+
+  it("rejects a comparison with no rows", () => {
+    expect(parseUiBlocks([{ type: "comparison", title: "Peers", rows: [] }])).toEqual([]);
+  });
+
+  it("parses a series with dated numeric points and an optional unit", () => {
+    const [block] = parseUiBlocks([
+      {
+        type: "series",
+        title: "Close",
+        unit: "IDR",
+        points: [
+          { date: "2026-10-01", value: 3120 },
+          { date: "2026-10-02", value: 3140 },
+        ],
+      },
+    ]);
+
+    expect(block.type).toBe("series");
+    if (block.type === "series") {
+      expect(block.unit).toBe("IDR");
+      expect(block.points).toHaveLength(2);
+    }
+  });
+
+  it("rejects a series with no points", () => {
+    expect(parseUiBlocks([{ type: "series", title: "Close", points: [] }])).toEqual([]);
+  });
+
+  it("parses sources with labels and optional detail", () => {
+    const [block] = parseUiBlocks([
+      {
+        type: "sources",
+        items: [{ label: "Sectors daily", detail: "ANTM 2026-10-02" }, { label: "Broker summary" }],
+      },
+    ]);
+
+    expect(block).toEqual({
+      type: "sources",
+      items: [{ label: "Sectors daily", detail: "ANTM 2026-10-02" }, { label: "Broker summary" }],
+    });
+  });
+
+  it("rejects sources with no items", () => {
+    expect(parseUiBlocks([{ type: "sources", items: [] }])).toEqual([]);
+  });
+
+  it("maps each richer block into its own render part, in order", () => {
+    const parts = toMessageParts({
+      content: "Detail:",
+      uiBlocks: [
+        { type: "comparison", title: "Peers", rows: [{ label: "ANTM", value: "+4.1%" }] },
+        { type: "series", title: "Close", points: [{ date: "2026-10-02", value: 3140 }] },
+        { type: "sources", items: [{ label: "Sectors daily" }] },
+      ],
+    });
+
+    expect(parts.map((part) => (part.kind === "block" ? part.block.type : part.kind))).toEqual([
+      "text",
+      "comparison",
+      "series",
+      "sources",
+    ]);
+  });
+});
