@@ -52,6 +52,7 @@ function InvestigationContent() {
   const [summaryData, setSummaryData] = useState<InvestigationData | null>(null);
   const [isFetchingSummary, setIsFetchingSummary] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
   const currentStatusIdx = PIPELINE_STEPS.findIndex((s) => s.status === eventData.status);
@@ -69,13 +70,17 @@ function InvestigationContent() {
 
     void fetch(`/api/investigations/${ticker}`)
       .then(async (res) => {
+        if (res.status === 404) {
+          if (!ignore) setNotFound(true);
+          return null;
+        }
         if (!res.ok) {
           throw new Error(`Could not load data from the API (HTTP ${res.status})`);
         }
         return toInvestigationData((await res.json()) as InvestigationDetailResponse);
       })
       .then((data) => {
-        if (!ignore) setSummaryData(data);
+        if (!ignore && data) setSummaryData(data);
       })
       .catch((err: unknown) => {
         if (ignore) return;
@@ -125,78 +130,81 @@ function InvestigationContent() {
         {summaryData && <StatusLabelBadge label={summaryData.statusLabel} />}
       </div>
 
-      <section className="dashboard-panel space-y-6">
-        <div>
-          <h2 className="panel-title">Investigation Progress</h2>
-          <p className="panel-subtitle">
-            Live progress of the agent pipeline for ticker{" "}
-            <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
-          </p>
-        </div>
+      {!hasReport && !notFound && (
+        <section className="dashboard-panel space-y-6">
+          <div>
+            <h2 className="panel-title">Investigation Progress</h2>
+            <p className="panel-subtitle">
+              Live progress of the agent pipeline for ticker{" "}
+              <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-          {PIPELINE_STEPS.map((step, idx) => {
-            const isCurrent = eventData.status === step.status && eventData.status !== "completed";
-            const isDone = currentStatusIdx > idx || eventData.status === "completed";
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+            {PIPELINE_STEPS.map((step, idx) => {
+              const isCurrent =
+                eventData.status === step.status && eventData.status !== "completed";
+              const isDone = currentStatusIdx > idx || eventData.status === "completed";
 
-            return (
-              <div
-                key={step.status}
-                className={`flex items-center gap-3 rounded-lg border p-3 text-xs transition-all ${
-                  isCurrent
-                    ? "border-signal/60 bg-signal/15 text-foreground font-bold"
-                    : isDone
-                      ? "border-signal/30 bg-signal/8 text-ink/85"
-                      : "border-border/40 text-muted-foreground opacity-60"
-                }`}
-              >
-                <span
-                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] ${
+              return (
+                <div
+                  key={step.status}
+                  className={`flex items-center gap-3 rounded-lg border p-3 text-xs transition-all ${
                     isCurrent
-                      ? "bg-signal text-signal-ink animate-bounce"
+                      ? "border-signal/60 bg-signal/15 text-foreground font-bold"
                       : isDone
-                        ? "bg-signal/70 font-bold text-ink"
-                        : "bg-muted text-muted-foreground"
+                        ? "border-signal/30 bg-signal/8 text-ink/85"
+                        : "border-border/40 text-muted-foreground opacity-60"
                   }`}
                 >
-                  {isDone ? <Check className="size-3" aria-hidden /> : idx + 1}
-                </span>
-                <span className="line-clamp-1">{step.label}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {eventData.currentTool && !isTerminal && (
-          <div className="border-rule bg-ink/4 space-y-2 rounded-lg border p-4">
-            <span className="text-signal-text flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider uppercase">
-              <Wrench className="size-3.5" aria-hidden />
-              Active tool
-            </span>
-            <p className="text-foreground text-sm font-bold">
-              {toolLabel(eventData.currentTool.toolName)}
-            </p>
-            <p className="text-muted-foreground text-xs leading-relaxed">
-              <strong className="text-foreground">Reason: </strong>
-              {eventData.currentTool.reason}
-            </p>
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] ${
+                      isCurrent
+                        ? "bg-signal text-signal-ink animate-bounce"
+                        : isDone
+                          ? "bg-signal/70 font-bold text-ink"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {isDone ? <Check className="size-3" aria-hidden /> : idx + 1}
+                  </span>
+                  <span className="line-clamp-1">{step.label}</span>
+                </div>
+              );
+            })}
           </div>
-        )}
 
-        {isFailed && (
-          <div className="border-destructive/50 bg-destructive/10 space-y-1 rounded-lg border p-4">
-            <h4 className="text-destructive flex items-center gap-1.5 text-sm font-bold">
-              <TriangleAlert className="size-4" aria-hidden />
-              Pipeline Execution Failed
-            </h4>
-            <p className="text-destructive/90 font-mono text-xs">
-              {eventData.error || "The agent run failed."}
-            </p>
-          </div>
-        )}
-      </section>
+          {eventData.currentTool && !isTerminal && (
+            <div className="border-rule bg-ink/4 space-y-2 rounded-lg border p-4">
+              <span className="text-signal-text flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider uppercase">
+                <Wrench className="size-3.5" aria-hidden />
+                Active tool
+              </span>
+              <p className="text-foreground text-sm font-bold">
+                {toolLabel(eventData.currentTool.toolName)}
+              </p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                <strong className="text-foreground">Reason: </strong>
+                {eventData.currentTool.reason}
+              </p>
+            </div>
+          )}
 
-      {!summaryData && (isFetchingSummary || fetchError) && (
+          {isFailed && (
+            <div className="border-destructive/50 bg-destructive/10 space-y-1 rounded-lg border p-4">
+              <h4 className="text-destructive flex items-center gap-1.5 text-sm font-bold">
+                <TriangleAlert className="size-4" aria-hidden />
+                Pipeline Execution Failed
+              </h4>
+              <p className="text-destructive/90 font-mono text-xs">
+                {eventData.error || "The agent run failed."}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {!summaryData && !notFound && (isFetchingSummary || fetchError) && (
         <div className="dashboard-panel space-y-3 py-8 text-center">
           {isFetchingSummary ? (
             <p className="text-signal-text flex items-center justify-center gap-2 font-mono text-sm">
@@ -215,12 +223,34 @@ function InvestigationContent() {
         </div>
       )}
 
+      {notFound && (
+        <div className="dashboard-panel space-y-4 py-10 text-center">
+          <p className="text-foreground font-medium">
+            No investigation exists for <span className="text-signal-text uppercase">{ticker}</span>{" "}
+            yet.
+          </p>
+          <p className="text-muted-foreground mx-auto max-w-md text-sm leading-relaxed">
+            Start the first run and the agent will collect market, sector, flow, broker, and news
+            evidence, then explain what moved.
+          </p>
+          <Button
+            type="button"
+            onClick={() => void navigate({ to: "/" })}
+            className="mx-auto w-fit"
+          >
+            Go to the watchlist to investigate
+          </Button>
+        </div>
+      )}
+
       {summaryData && !hasReport && (
-        <div className="dashboard-panel flex items-center justify-center gap-2 py-10 text-center">
-          <LoaderCircle className="text-signal-text size-4 animate-spin" aria-hidden />
+        <div className="dashboard-panel space-y-2 py-10 text-center">
+          <p className="text-signal-text flex items-center justify-center gap-2 font-mono text-sm">
+            <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            The agent is collecting evidence
+          </p>
           <p className="text-muted-foreground text-sm">
-            The agent is collecting evidence. The report appears here once the investigation
-            completes.
+            The report appears here once the investigation completes.
           </p>
         </div>
       )}

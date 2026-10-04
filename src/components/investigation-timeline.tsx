@@ -1,5 +1,6 @@
 import type { TimelineEntry } from "@/lib/history-view-model";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 
 const STATUS_TEXT: Record<TimelineEntry["status"], string> = {
   COMPLETED: "Completed",
@@ -8,6 +9,9 @@ const STATUS_TEXT: Record<TimelineEntry["status"], string> = {
 };
 
 const CONFIDENCE_TEXT = { HIGH: "High", MEDIUM: "Medium", LOW: "Low" } as const;
+
+/** Runs shown before the list collapses; a busy ticker can have dozens. */
+const VISIBLE_RUNS = 5;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
@@ -20,14 +24,39 @@ export function InvestigationTimeline({
   entries: readonly TimelineEntry[];
   ticker: string;
 }) {
+  const [showAll, setShowAll] = useState(false);
   if (entries.length === 0) return null;
 
+  const visible = showAll ? entries : entries.slice(0, VISIBLE_RUNS);
+  const hiddenCount = entries.length - visible.length;
+
   return (
-    <ol className="space-y-2.5">
-      {entries.map((entry) => (
-        <TimelineRow key={entry.id} entry={entry} ticker={ticker} />
-      ))}
-    </ol>
+    <div className="space-y-3">
+      <ol className="space-y-2.5">
+        {visible.map((entry) => (
+          <TimelineRow key={entry.id} entry={entry} ticker={ticker} />
+        ))}
+      </ol>
+
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 w-full rounded-lg py-2 font-mono text-[11px] tracking-wider uppercase outline-none focus-visible:ring-3"
+        >
+          Show {hiddenCount} earlier run{hiddenCount === 1 ? "" : "s"}
+        </button>
+      )}
+      {showAll && entries.length > VISIBLE_RUNS && (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 w-full rounded-lg py-2 font-mono text-[11px] tracking-wider uppercase outline-none focus-visible:ring-3"
+        >
+          Show recent runs only
+        </button>
+      )}
+    </div>
   );
 }
 
