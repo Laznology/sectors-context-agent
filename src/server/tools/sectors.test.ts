@@ -71,6 +71,18 @@ describe("Sectors semantic tools", () => {
     }
   });
 
+  it("clamps a planner-supplied future date range to today", async () => {
+    const future = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const [requestUrl] = await captureRequestUrls(
+      () => getPriceContext.execute({ start: "2026-09-25", end: future }, { ticker: "ANTM" }),
+      [],
+    );
+
+    expect(requestUrl).toContain(`end=${today}`);
+    expect(requestUrl).not.toContain(`end=${future}`);
+  });
+
   it("sends broker-summary an origin Sectors accepts", async () => {
     const [requestUrl] = await captureRequestUrls(() =>
       getBrokerActivity.execute({}, { ticker: "ANTM" }),

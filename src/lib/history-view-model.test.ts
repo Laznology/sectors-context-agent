@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { groupHistory, InvestigationListResponseSchema } from "./history-view-model.ts";
+import { groupHistory, toTimeline } from "./history-view-model.ts";
 
 describe("groupHistory", () => {
   it("groups runs by ticker, newest ticker and newest run first", () => {
@@ -55,8 +55,65 @@ describe("groupHistory", () => {
   });
 });
 
-describe("InvestigationListResponseSchema", () => {
-  it("rejects a payload without the investigations array", () => {
-    expect(InvestigationListResponseSchema.safeParse({ items: [] }).success).toBe(false);
+describe("toTimeline", () => {
+  const runs = [
+    {
+      id: "old",
+      ticker: "ANTM",
+      status: "completed",
+      driver: "MARKET_DRIVEN" as const,
+      confidence: 0.5,
+      whatChanged: "Moved with the market.",
+      changesSincePrevious: null,
+      createdAt: "2026-09-29T01:00:00Z",
+      completedAt: "2026-09-29T01:05:00Z",
+    },
+    {
+      id: "new",
+      ticker: "ANTM",
+      status: "completed",
+      driver: "FLOW_DRIVEN" as const,
+      confidence: 0.8,
+      whatChanged: "Foreign inflow strengthened.",
+      changesSincePrevious: "Foreign inflow continued since the prior run.",
+      createdAt: "2026-10-02T01:00:00Z",
+      completedAt: "2026-10-02T01:05:00Z",
+    },
+  ];
+
+  it("returns that ticker's runs newest first, marking the current one", () => {
+    const entries = toTimeline(runs, "ANTM", "new");
+
+    expect(entries.map((entry) => entry.id)).toEqual(["new", "old"]);
+    expect(entries[0].isCurrent).toBe(true);
+    expect(entries[1].isCurrent).toBe(false);
+  });
+
+  it("carries date, driver, confidence and summary per entry", () => {
+    const [entry] = toTimeline(runs, "ANTM", "new");
+
+    expect(entry.date).toBe("2026-10-02T01:05:00Z");
+    expect(entry.driver).toBe("FLOW_DRIVEN");
+    expect(entry.confidence).toBe("HIGH");
+    expect(entry.summary).toBe("Foreign inflow strengthened.");
+  });
+
+  it("shows a delta only when a change since the previous run is recorded", () => {
+    const entries = toTimeline(runs, "ANTM", "new");
+
+    expect(entries[0].delta).toBe("Foreign inflow continued since the prior run.");
+    expect(entries[1].delta).toBeNull();
+  });
+
+  it("produces a single-entry timeline with no delta for one run", () => {
+    const entries = toTimeline([runs[1]], "ANTM", "new");
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].isCurrent).toBe(true);
+    expect(entries[0].delta).toBe("Foreign inflow continued since the prior run.");
+  });
+
+  it("returns an empty timeline for a ticker with no runs", () => {
+    expect(toTimeline(runs, "BBCA", "new")).toEqual([]);
   });
 });

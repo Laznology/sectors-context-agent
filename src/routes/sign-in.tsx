@@ -1,12 +1,12 @@
-import { useState, type FormEvent } from "react";
-import { Link, createRoute, useNavigate } from "@tanstack/react-router";
+import { SignalReadout } from "@/components/signal-readout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard } from "@/lib/session";
 import { rootRoute } from "@/routes/__root";
-import { SignalReadout } from "@/components/signal-readout";
+import { Link, createRoute, useNavigate } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
 
 import "@/index.css";
 
@@ -109,6 +109,15 @@ function SignInForm() {
             Create one
           </Link>
         </p>
+
+        <div className="border-rule bg-ink/4 mt-6 space-y-1 rounded-lg border p-3">
+          <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+            Demo account
+          </p>
+          <p className="text-muted-foreground font-mono text-[11px]">
+            demo@example.com · demo-password-123
+          </p>
+        </div>
       </section>
     </div>
   );

@@ -1,55 +1,47 @@
 /**
  * Maps `GET /api/investigations` (server `InvestigationSummary[]`) into the
- * ticker groups the history page renders (FE wiki #6).
+ * ticker groups the history surfaces render, and derives the per-ticker
+ * Timeline the investigation workspace shows.
  */
 import { z } from "zod";
+import { InvestigationDriverSchema } from "../shared/schemas/investigation.ts";
 
-const DriverSchema = z.enum([
-  "MARKET_DRIVEN",
-  "SECTOR_DRIVEN",
-  "FLOW_DRIVEN",
-  "COMPANY_SPECIFIC",
-  "MIXED",
-  "UNCLEAR",
-]);
-
-const InvestigationSummarySchema = z.object({
-  id: z.string(),
-  ticker: z.string(),
-  companyName: z.string().nullish(),
-  status: z.string(),
-  driver: DriverSchema.nullish(),
-  confidence: z.number().nullish(),
-  whatChanged: z.string().nullish(),
-  createdAt: z.string(),
-  completedAt: z.string().nullish(),
-});
-
-export const InvestigationListResponseSchema = z.object({
-  investigations: z.array(InvestigationSummarySchema),
-  pagination: z.object({
-    limit: z.number(),
-    offset: z.number(),
-    hasMore: z.boolean(),
-  }),
-});
-
-export type InvestigationListResponse = z.infer<typeof InvestigationListResponseSchema>;
-type InvestigationSummary = z.infer<typeof InvestigationSummarySchema>;
+/** One run as the API returns it, before Timeline derivation. */
+type InvestigationSummary = {
+  readonly id: string;
+  readonly ticker: string;
+  readonly companyName?: string | null;
+  readonly status: string;
+  readonly driver?: z.infer<typeof InvestigationDriverSchema> | null;
+  readonly confidence?: number | null;
+  readonly whatChanged?: string | null;
+  readonly changesSincePrevious?: string | null;
+  readonly createdAt: string;
+  readonly completedAt?: string | null;
+};
 
 export type HistoryStatus = "COMPLETED" | "IN_PROGRESS" | "FAILED";
 export type HistoryConfidence = "HIGH" | "MEDIUM" | "LOW";
+export type HistoryDriver = z.infer<typeof InvestigationDriverSchema>;
 
 /** One past investigation run. */
 export interface HistoryEntry {
   id: string;
   status: HistoryStatus;
-  driver: z.infer<typeof DriverSchema> | null;
+  driver: HistoryDriver | null;
   /** Null until synthesis has produced a confidence score. */
   confidence: HistoryConfidence | null;
   summary: string;
   /** Completion time when available, otherwise when the run started. */
   date: string;
+}
+
+/** One run in a ticker's Timeline: a history entry plus its continuity context. */
+export interface TimelineEntry extends HistoryEntry {
+  /** What changed since the run before it, when synthesis recorded one. */
+  delta: string | null;
+  /** True for the run the workspace is currently showing. */
+  isCurrent: boolean;
 }
 
 /** All runs for one ticker, newest first. */
@@ -102,4 +94,28 @@ export function groupHistory(items: readonly InvestigationSummary[]): HistoryGro
   const result = [...groups.values()];
   for (const group of result) group.entries.sort(byNewest);
   return result.sort((a, b) => byNewest(a.entries[0], b.entries[0]));
+}
+
+/**
+ * The Timeline for one ticker: that ticker's runs, newest first, each with its
+ * delta since the run before it.
+ *
+ * Reuses `groupHistory` so there is one definition of "runs for a ticker"
+ * rather than a second grouping that could drift.
+ */
+export function toTimeline(
+  items: readonly InvestigationSummary[],
+  ticker: string,
+  currentId: string | null,
+): TimelineEntry[] {
+  const group = groupHistory(items).find((candidate) => candidate.ticker === ticker);
+  if (!group) return [];
+
+  const deltaById = new Map(items.map((item) => [item.id, item.changesSincePrevious ?? null]));
+
+  return group.entries.map((entry) => ({
+    ...entry,
+    delta: deltaById.get(entry.id) ?? null,
+    isCurrent: entry.id === currentId,
+  }));
 }

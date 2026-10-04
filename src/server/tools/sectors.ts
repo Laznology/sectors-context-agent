@@ -300,7 +300,10 @@ export const sectorsInvestigationTools = [
 ] as const;
 
 function dateQuery(input: DateRangeInput): Record<string, string | undefined> {
-  return { start: input.start, end: input.end };
+  const today = new Date().toISOString().slice(0, 10);
+  const start = input.start && input.start > today ? today : input.start;
+  const end = input.end && input.end > today ? today : input.end;
+  return { start, end };
 }
 
 function latestDate(records: readonly { date: string }[]): string | undefined {

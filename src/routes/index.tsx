@@ -1,4 +1,3 @@
-import { FollowUpChatWidget } from "@/components/follow-up-chat-widget";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +9,8 @@ import {
   type WatchlistItem,
 } from "@/lib/watchlist-view-model";
 import { rootRoute } from "@/routes/__root";
-import { createRoute, Link, useNavigate } from "@tanstack/react-router";
-import { History, LoaderCircle, Trash } from "lucide-react";
+import { createRoute, useNavigate } from "@tanstack/react-router";
+import { LoaderCircle, Trash } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import "@/index.css";
@@ -39,6 +38,7 @@ function AppShell() {
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [inputTicker, setInputTicker] = useState("");
+  const [question, setQuestion] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
@@ -158,11 +158,15 @@ function AppShell() {
   const handleInvestigate = async (ticker: string) => {
     setErrorMessage(null);
 
+    const trimmedQuestion = question.trim();
     try {
       const res = await fetch("/api/investigations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker }),
+        body: JSON.stringify({
+          ticker,
+          ...(trimmedQuestion ? { question: trimmedQuestion } : {}),
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -170,7 +174,7 @@ function AppShell() {
       }
       // The detail route is keyed by ticker so the address stays readable; the
       // API resolves either a ticker or an investigation id.
-      await navigate({ to: `/investigations/${ticker}` as any });
+      await navigate({ to: "/investigations/$ticker", params: { ticker } });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Could not start investigation.");
     }
@@ -186,18 +190,11 @@ function AppShell() {
           </p>
           <h1 className="dashboard-title">Welcome, {name}.</h1>
           <p className="dashboard-subtitle">
-            Monitor market tickers, check latest close prices, and perform real-time evidence-backed
-            investigations.
+            Monitor market tickers, check the latest close, and run evidence-backed investigations
+            on demand.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            to="/history"
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded-md px-2 py-1 text-xs"
-          >
-            <History className="size-3.5" aria-hidden />
-            Riwayat
-          </Link>
           <Button type="button" variant="outline" size="sm" onClick={handleSignOut}>
             Sign out
           </Button>
@@ -241,10 +238,21 @@ function AppShell() {
 
       {/* Watchlist Section */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <h2 className="font-serif text-2xl font-bold tracking-tight">
             Watchlist ({watchlist.length})
           </h2>
+          <div className="grid w-full gap-1.5 sm:w-96">
+            <Label htmlFor="question-input" className="text-xs font-medium">
+              Investigation question (optional)
+            </Label>
+            <Input
+              id="question-input"
+              placeholder="e.g. Why did ANTM move today?"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+            />
+          </div>
         </div>
 
         {isLoading ? (
@@ -293,33 +301,77 @@ function AppShell() {
                 {/* Details & Status */}
                 <div className="border-t border-border/40 pt-3 space-y-2">
                   <div className="ticker-meta-row">
-                    <span className="ticker-meta-label">Status Investigasi:</span>
+                    <span className="ticker-meta-label">Investigation status</span>
                     <StatusBadge status={item.investigationStatus} />
                   </div>
+
+                  {item.statusLabel && (
+                    <div className="ticker-meta-row">
+                      <span className="ticker-meta-label">Attention</span>
+                      <span className="ticker-meta-value">
+                        {STATUS_LABEL_TEXT[item.statusLabel]}
+                      </span>
+                    </div>
+                  )}
+
+                  {item.driver && (
+                    <div className="ticker-meta-row">
+                      <span className="ticker-meta-label">Latest driver</span>
+                      <span className="ticker-meta-value">{item.driver.replace(/_/g, " ")}</span>
+                    </div>
+                  )}
+
                   <div className="ticker-meta-row">
-                    <span className="ticker-meta-label">Terakhir Diinvestigasi:</span>
+                    <span className="ticker-meta-label">Runs</span>
+                    <span className="ticker-meta-value">
+                      {item.runCount === 0 ? "None yet" : item.runCount}
+                    </span>
+                  </div>
+
+                  <div className="ticker-meta-row">
+                    <span className="ticker-meta-label">Last investigated</span>
                     <span className="ticker-meta-value">{formatDate(item.lastInvestigatedAt)}</span>
                   </div>
 
                   <Button
                     type="button"
-                    variant="outline"
-                    className="w-full mt-3 hover:bg-primary hover:text-primary-foreground transition-colors"
-                    onClick={() => handleInvestigate(item.ticker)}
+                    variant={item.primaryAction === "OPEN_REPORT" ? "outline" : "default"}
+                    className="w-full mt-3 transition-colors"
+                    onClick={() =>
+                      item.primaryAction === "OPEN_REPORT"
+                        ? void navigate({
+                            to: "/investigations/$ticker",
+                            params: { ticker: item.ticker },
+                          })
+                        : void handleInvestigate(item.ticker)
+                    }
                   >
-                    Investigate
+                    {PRIMARY_ACTION_LABEL[item.primaryAction]}
                   </Button>
+                  <p className="text-muted-foreground pt-1 text-center text-[11px] leading-relaxed">
+                    {item.actionReason}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
         )}
       </section>
-
-      {!isLoading && <FollowUpChatWidget watchlist={watchlist} />}
     </div>
   );
 }
+
+const PRIMARY_ACTION_LABEL: Record<WatchlistItem["primaryAction"], string> = {
+  INVESTIGATE: "Investigate",
+  OPEN_REPORT: "Open report",
+  UPDATE: "Update",
+};
+
+const STATUS_LABEL_TEXT: Record<NonNullable<WatchlistItem["statusLabel"]>, string> = {
+  NORMAL: "Normal",
+  ATTENTION: "Needs attention",
+  UNCLEAR: "Unclear",
+};
 
 function StatusBadge({ status }: { status: WatchlistItem["investigationStatus"] }) {
   const styles: Record<WatchlistItem["investigationStatus"], string> = {

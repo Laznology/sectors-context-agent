@@ -1,5 +1,4 @@
 import "@/index.css";
-import { historyRoute } from "@/routes/history";
 import { indexRoute } from "@/routes/index";
 import { investigationDetailRoute } from "@/routes/investigations.$ticker";
 import { signInRoute } from "@/routes/sign-in";
@@ -14,7 +13,6 @@ export const rootRoute = createRootRoute({
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   investigationDetailRoute,
-  historyRoute,
   signInRoute,
   signUpRoute,
 ]);
