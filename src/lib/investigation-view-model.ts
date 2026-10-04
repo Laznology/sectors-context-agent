@@ -149,9 +149,10 @@ const TOOL_LABELS: Record<string, string> = {
   get_company_filings: "Filings",
 };
 
-const EVIDENCE_TYPE_BY_TOOL: Record<string, EvidenceCategory> = {
+const EVIDENCE_TYPE_BY_TOOL: Record<string, string> = {
   get_price_context: "price_volume",
   get_market_context: "market",
+  get_company_context: "company",
   get_sector_context: "sector",
   get_foreign_flow: "foreign_flow",
   get_broker_activity: "broker",

@@ -3,6 +3,10 @@
  * into the shape the dashboard cards render from, including the continuity
  * state and the primary action that follows from it.
  */
+import type {
+  InvestigationDriver,
+  InvestigationStatusLabel,
+} from "../shared/schemas/investigation.ts";
 import { hasNewerSession, latestAvailableSession } from "./session-freshness.ts";
 
 export type WatchlistInvestigationStatus =
@@ -12,15 +16,11 @@ export type WatchlistInvestigationStatus =
   | "FAILED"
   | "NONE";
 
-export type WatchlistDriver =
-  | "MARKET_DRIVEN"
-  | "SECTOR_DRIVEN"
-  | "FLOW_DRIVEN"
-  | "COMPANY_SPECIFIC"
-  | "MIXED"
-  | "UNCLEAR";
+/** The shared driver vocabulary, upper-cased for display. */
+export type WatchlistDriver = InvestigationDriver;
 
-export type WatchlistStatusLabel = "NORMAL" | "ATTENTION" | "UNCLEAR";
+/** The shared attention state, upper-cased for display. */
+export type WatchlistStatusLabel = Uppercase<InvestigationStatusLabel>;
 
 /** Whether the ticker has a story, and whether that story is still current. */
 export type Continuity = "NONE" | "RUNNING" | "FRESH" | "STALE";

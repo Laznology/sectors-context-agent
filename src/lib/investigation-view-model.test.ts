@@ -52,6 +52,18 @@ describe("toInvestigationData", () => {
     ]);
   });
 
+  it("attributes company evidence to the Company Context step", () => {
+    const result = toInvestigationData({
+      id: "inv-company",
+      status: "completed",
+      evidence: [{ type: "company", summary: "Company overview collected for ANTM." }],
+      toolCalls: [{ toolName: "get_company_context", status: "succeeded", durationMs: 5 }],
+    });
+
+    expect(result.investigationPath[0].label).toBe("Company Context");
+    expect(result.investigationPath[0].findings).toEqual(["Company overview collected for ANTM."]);
+  });
+
   it("builds ordered evidence cards and prefers the model finding", () => {
     const result = toInvestigationData({
       id: "inv-1b",

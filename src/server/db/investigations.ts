@@ -142,7 +142,11 @@ export type InvestigationCompletion = {
 export interface InvestigationStore {
   create(input: InvestigationCreateInput): Promise<{ id: string }>;
   findPrevious(userId: string, ticker: string): Promise<PreviousInvestigation | null>;
-  list(userId: string, page?: { limit: number; offset: number }): Promise<InvestigationSummary[]>;
+  list(
+    userId: string,
+    page?: { limit: number; offset: number },
+    options?: { ticker?: string },
+  ): Promise<InvestigationSummary[]>;
   /** Resolves either an investigation id or a ticker, newest first. */
   getDetail(userId: string, idOrTicker: string): Promise<InvestigationDetail | null>;
   updateFromState(investigationId: string, patch: InvestigationStatePatch): Promise<void>;

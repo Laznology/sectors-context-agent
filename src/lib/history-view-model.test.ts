@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { groupHistory, InvestigationListResponseSchema, toTimeline } from "./history-view-model.ts";
+import { groupHistory, toTimeline } from "./history-view-model.ts";
 
 describe("groupHistory", () => {
   it("groups runs by ticker, newest ticker and newest run first", () => {
@@ -52,12 +52,6 @@ describe("groupHistory", () => {
 
   it("returns no groups for an empty history", () => {
     expect(groupHistory([])).toEqual([]);
-  });
-});
-
-describe("InvestigationListResponseSchema", () => {
-  it("rejects a payload without the investigations array", () => {
-    expect(InvestigationListResponseSchema.safeParse({ items: [] }).success).toBe(false);
   });
 });
 

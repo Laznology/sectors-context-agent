@@ -29,12 +29,19 @@ export function InvestigationTimeline({
 
   const visible = showAll ? entries : entries.slice(0, VISIBLE_RUNS);
   const hiddenCount = entries.length - visible.length;
+  // Entries arrive newest-first, so the first one is always the latest run.
+  const newestId = entries[0]?.id ?? null;
 
   return (
     <div className="space-y-3">
       <ol className="space-y-2.5">
         {visible.map((entry) => (
-          <TimelineRow key={entry.id} entry={entry} ticker={ticker} />
+          <TimelineRow
+            key={entry.id}
+            entry={entry}
+            ticker={ticker}
+            isNewest={entry.id === newestId}
+          />
         ))}
       </ol>
 
@@ -60,7 +67,15 @@ export function InvestigationTimeline({
   );
 }
 
-function TimelineRow({ entry, ticker }: { entry: TimelineEntry; ticker: string }) {
+function TimelineRow({
+  entry,
+  ticker,
+  isNewest,
+}: {
+  entry: TimelineEntry;
+  ticker: string;
+  isNewest: boolean;
+}) {
   const body = (
     <div className="min-w-0 flex-1 space-y-1.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -81,6 +96,7 @@ function TimelineRow({ entry, ticker }: { entry: TimelineEntry; ticker: string }
           </span>
         )}
         {entry.isCurrent && <span className="badge badge-signal ml-auto">Current</span>}
+        {!entry.isCurrent && isNewest && <span className="badge badge-ink ml-auto">Latest</span>}
       </div>
       {entry.summary && (
         <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">

@@ -65,6 +65,26 @@ function InvestigationContent() {
     setReloadToken((token) => token + 1);
   };
 
+  const handleReinvestigate = async (targetTicker: string) => {
+    try {
+      const res = await fetch("/api/investigations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticker: targetTicker }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not start the run (HTTP ${res.status})`);
+      }
+      setSummaryData(null);
+      setNotFound(false);
+      setFetchError(null);
+      reload();
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : "Could not start the run.");
+    }
+  };
+
   useEffect(() => {
     let ignore = false;
 
@@ -271,10 +291,19 @@ function InvestigationContent() {
             </div>
 
             {summaryData.status === "FAILED" ? (
-              <p className="text-destructive text-sm leading-relaxed">
-                This investigation did not complete, so there is no explanation to show. Run it
-                again from the dashboard.
-              </p>
+              <div className="space-y-4">
+                <p className="text-destructive text-sm leading-relaxed">
+                  This investigation did not complete, so there is no explanation to show.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => void handleReinvestigate(summaryData.ticker || ticker)}
+                  className="w-fit"
+                >
+                  <RefreshCw aria-hidden />
+                  Run it again
+                </Button>
+              </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -382,13 +411,15 @@ function InvestigationContent() {
                 </div>
               </section>
 
-              <ChatPanel
-                key={`${summaryData.id}-${summaryData.status}`}
-                investigationId={summaryData.id}
-                ticker={summaryData.ticker || ticker}
-                initialMessages={summaryData.conversation}
-                isEnabled
-              />
+              {summaryData.status === "COMPLETED" && (
+                <ChatPanel
+                  key={`${summaryData.id}-${summaryData.status}`}
+                  investigationId={summaryData.id}
+                  ticker={summaryData.ticker || ticker}
+                  initialMessages={summaryData.conversation}
+                  isEnabled
+                />
+              )}
 
               <footer className="border-rule border-t pt-4 text-center">
                 <p className="text-muted-foreground font-mono text-xs italic">
