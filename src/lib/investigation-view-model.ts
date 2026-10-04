@@ -283,3 +283,27 @@ function categoryFromLabel(label: string): EvidenceCategory | null {
   if (/(filing|laporan|keterbukaan)/.test(value)) return "filing";
   return null;
 }
+
+/**
+ * The investigation result as the conversation's first assistant turn.
+ *
+ * The thread starts from the audited conclusion rather than a fresh generation,
+ * so it cannot drift from the report. Returns null when there is no completed
+ * result to open with.
+ */
+export function toOpeningMessage(data: InvestigationData): ConversationMessage | null {
+  if (data.status !== "COMPLETED") return null;
+
+  const parts = [
+    data.whatChanged,
+    data.whyItMatters,
+    `Driver: ${data.likelyDriver.replace(/_/g, " ")}. Confidence: ${data.confidence}.`,
+  ].filter((part) => part.trim().length > 0);
+
+  return {
+    id: `opening-${data.id}`,
+    role: "assistant",
+    content: parts.join("\n\n"),
+    createdAt: data.id ? new Date(0).toISOString() : new Date().toISOString(),
+  };
+}
