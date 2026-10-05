@@ -29,6 +29,7 @@ export interface WatchlistItem {
   ticker: string;
   companyName: string;
   latestClose: number | null;
+  latestCloseDate: string | null;
   investigationStatus: WatchlistInvestigationStatus;
   lastInvestigatedAt: string | null;
   investigationId: string | null;
@@ -150,6 +151,7 @@ export function toWatchlistItems(
       ticker: entry.ticker,
       companyName: entry.companyName ?? "",
       latestClose: entry.lastClose ?? null,
+      latestCloseDate: entry.lastCloseDate ?? null,
       investigationStatus,
       lastInvestigatedAt: investigation
         ? (investigation.completedAt ?? investigation.createdAt)

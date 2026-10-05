@@ -14,7 +14,16 @@ import { useInvestigationSSE, type PipelineStatus } from "@/lib/use-investigatio
 import { rootRoute } from "@/routes/__root";
 import { PIPELINE_STEP_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import { createRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { ArrowLeft, Check, LoaderCircle, RefreshCw, TriangleAlert, Wrench } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  LoaderCircle,
+  MessageSquare,
+  RefreshCw,
+  TriangleAlert,
+  Wrench,
+  X,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 export const investigationDetailRoute = createRoute({
@@ -24,6 +33,11 @@ export const investigationDetailRoute = createRoute({
 });
 
 /** Ordered stages of the run; the labels live in the shared schema so no surface re-invents them. */
+const AS_OF_DATE_FORMAT = new Intl.DateTimeFormat("id-ID", {
+  dateStyle: "medium",
+  timeZone: "UTC",
+});
+
 const PIPELINE_STEPS: PipelineStatus[] = [
   "pending",
   "collecting_baseline",
@@ -54,6 +68,8 @@ function InvestigationContent() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [openChatId, setOpenChatId] = useState<string | null>(null);
+  const isChatOpen = summaryData?.status === "COMPLETED" && openChatId === summaryData.id;
   const loadingRef = useRef<HTMLDivElement | null>(null);
 
   const currentStatusIdx = PIPELINE_STEPS.indexOf(eventData.status);
@@ -69,6 +85,7 @@ function InvestigationContent() {
   };
 
   const handleReinvestigate = async (targetTicker: string) => {
+    setOpenChatId(null);
     try {
       const res = await fetch("/api/investigations", {
         method: "POST",
@@ -129,8 +146,12 @@ function InvestigationContent() {
   });
 
   return (
-    <div className="dashboard-wrapper space-y-8 pb-16">
-      <div className="border-rule flex items-center justify-between gap-4 border-b pb-6">
+    <div
+      className={`dashboard-wrapper space-y-8 ${
+        isChatOpen ? "xl:max-w-none xl:pl-6 xl:pr-[39rem]" : ""
+      }`}
+    >
+      <div className="border-rule flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2">
           <Button
             variant="ghost"
@@ -144,15 +165,45 @@ function InvestigationContent() {
             Kembali ke dasbor
           </Button>
           <h1 className="dashboard-title">
-            Ticker:{" "}
             <span className="text-signal-text uppercase">{summaryData?.ticker || ticker}</span>
           </h1>
           {summaryData?.companyName && (
             <p className="text-foreground/80 text-sm">{summaryData.companyName}</p>
           )}
+          {summaryData?.asOfDate && (
+            <p className="text-muted-foreground text-xs">
+              Data sampai {AS_OF_DATE_FORMAT.format(new Date(`${summaryData.asOfDate}T00:00:00Z`))},
+              penutupan harian
+            </p>
+          )}
         </div>
-        {summaryData && <StatusLabelBadge label={summaryData.statusLabel} />}
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+          {summaryData?.status === "COMPLETED" && (
+            <Button
+              type="button"
+              size="sm"
+              variant={isChatOpen ? "secondary" : "outline"}
+              aria-expanded={isChatOpen}
+              onClick={() => setOpenChatId(isChatOpen ? null : summaryData.id)}
+            >
+              {isChatOpen ? <X aria-hidden /> : <MessageSquare aria-hidden />}
+              {isChatOpen ? "Tutup chat" : "Tanya agent"}
+            </Button>
+          )}
+          {summaryData && <StatusLabelBadge label={summaryData.statusLabel} />}
+        </div>
       </div>
+
+      {stage === "report" && summaryData?.status === "COMPLETED" && (
+        <ChatPanel
+          key={`${summaryData.id}-${summaryData.status}`}
+          investigationId={summaryData.id}
+          ticker={summaryData.ticker || ticker}
+          initialMessages={summaryData.conversation}
+          isOpen={isChatOpen}
+          onClose={() => setOpenChatId(null)}
+        />
+      )}
 
       {/* Persistent wrapper: React swaps the child inside it, so a live run resolves
           into the report in place instead of remounting the whole subtree. */}
@@ -234,7 +285,7 @@ function InvestigationContent() {
                     <span
                       className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] ${
                         isCurrent
-                          ? "bg-signal text-signal-ink animate-bounce"
+                          ? "bg-signal text-signal-ink ring-4 ring-signal/20"
                           : isDone
                             ? "bg-signal/70 font-bold text-ink"
                             : "bg-muted text-muted-foreground"
@@ -279,23 +330,13 @@ function InvestigationContent() {
         )}
 
         {stage === "report" && summaryData && (
-          <>
+          <main className="min-w-0 space-y-6">
             <InvestigationVerdict data={summaryData} />
-
-            {summaryData.status === "COMPLETED" && (
-              <ChatPanel
-                key={`${summaryData.id}-${summaryData.status}`}
-                investigationId={summaryData.id}
-                ticker={summaryData.ticker || ticker}
-                initialMessages={summaryData.conversation}
-              />
-            )}
-
             <InvestigationReport
               data={summaryData}
               onReinvestigate={() => void handleReinvestigate(summaryData.ticker || ticker)}
             />
-          </>
+          </main>
         )}
       </div>
     </div>

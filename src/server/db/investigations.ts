@@ -41,6 +41,7 @@ export type InvestigationDetail = {
   readonly subSector?: string | null;
   readonly question?: string | null;
   readonly status: InvestigationStatus;
+  readonly asOfDate?: string | null;
   readonly statusLabel?: InvestigationStatusLabel | null;
   readonly classification?: InvestigationClassification | null;
   readonly driver?: InvestigationDriver | null;
@@ -318,6 +319,7 @@ export class PostgresInvestigationStore implements InvestigationStore {
       subSector: row.subSector ?? null,
       question: row.question,
       status: row.status,
+      asOfDate: row.asOfDate ?? null,
       statusLabel: row.statusLabel ?? null,
       classification: row.classification,
       driver: row.driver,

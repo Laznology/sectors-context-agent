@@ -121,6 +121,57 @@ describe("toInvestigationData", () => {
     );
   });
 
+  it("keeps the data session date for the report header", () => {
+    const result = toInvestigationData({
+      id: "inv-as-of",
+      status: "completed",
+      asOfDate: "2026-10-02",
+    });
+
+    expect(result.asOfDate).toBe("2026-10-02");
+  });
+
+  it("drops invalid session dates", () => {
+    const result = toInvestigationData({
+      id: "inv-bad-date",
+      status: "completed",
+      asOfDate: "not-a-date",
+    });
+
+    expect(result.asOfDate).toBeNull();
+  });
+
+  it("keeps validated deterministic signals for the insight workspace", () => {
+    const result = toInvestigationData({
+      id: "inv-signals",
+      status: "completed",
+      signals: {
+        latestPrice: 3140,
+        latestVolume: 27387000,
+        dailyReturn: 0.0064,
+        marketReturn: 0.0045,
+        relativeReturn: 0.0019,
+        averageVolume: 109716510,
+        volumeRatio: 0.25,
+        unusualMovement: false,
+      },
+    });
+
+    expect(result.signals?.latestPrice).toBe(3140);
+    expect(result.signals?.relativeReturn).toBe(0.0019);
+    expect(result.signals?.volumeRatio).toBe(0.25);
+  });
+
+  it("drops malformed deterministic signals instead of rendering them", () => {
+    const result = toInvestigationData({
+      id: "inv-bad-signals",
+      status: "completed",
+      signals: { latestPrice: "3140" },
+    });
+
+    expect(result.signals).toBeNull();
+  });
+
   it("defaults missing fields and grades confidence bands", () => {
     const result = toInvestigationData({ id: "inv-2", status: "pending" });
 
@@ -130,6 +181,8 @@ describe("toInvestigationData", () => {
     expect(result.status).toBe("IN_PROGRESS");
     expect(result.evidence).toEqual({});
     expect(result.whatToMonitor).toEqual([]);
+    expect(result.asOfDate).toBeNull();
+    expect(result.signals).toBeNull();
     expect(result.conversation).toEqual([]);
     expect(result.investigationPath).toEqual([]);
   });

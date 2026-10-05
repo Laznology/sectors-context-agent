@@ -34,6 +34,7 @@ describe("toWatchlistItems", () => {
       ticker: "ANTM",
       companyName: "Aneka Tambang Tbk.",
       latestClose: 3340,
+      latestCloseDate: "2026-10-02",
       investigationStatus: "COMPLETED",
       lastInvestigatedAt: "2026-10-02T01:05:00.000Z",
       investigationId: "inv-1",
@@ -50,6 +51,7 @@ describe("toWatchlistItems", () => {
     const card = item({ ticker: "BBCA", createdAt: "2026-09-19T00:00:00.000Z" });
 
     expect(card.investigationStatus).toBe("NONE");
+    expect(card.latestCloseDate).toBeNull();
     expect(card.driver).toBeNull();
     expect(card.statusLabel).toBeNull();
     expect(card.runCount).toBe(0);

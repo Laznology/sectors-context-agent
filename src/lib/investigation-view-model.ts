@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { toTimeline, type TimelineEntry } from "./history-view-model.ts";
 export type LikelyDriver =
   | "MARKET_DRIVEN"
@@ -38,10 +39,26 @@ export interface EvidenceCard {
   importance: EvidenceImportance | null;
 }
 
+const MarketSignalsSchema = z.object({
+  latestPrice: z.number().nullable(),
+  latestVolume: z.number().nullable(),
+  dailyReturn: z.number().nullable(),
+  marketReturn: z.number().nullable(),
+  relativeReturn: z.number().nullable(),
+  averageVolume: z.number().nullable(),
+  volumeRatio: z.number().nullable(),
+  unusualMovement: z.boolean(),
+});
+
+export type MarketSignals = z.infer<typeof MarketSignalsSchema>;
+
+const AsOfDateSchema = z.iso.date();
+
 export interface InvestigationData {
   id: string;
   ticker: string;
   companyName: string;
+  asOfDate: string | null;
   question: string;
   status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
   statusLabel: StatusLabel | null;
@@ -53,6 +70,7 @@ export interface InvestigationData {
   evidenceCards: EvidenceCard[];
   confidence: "HIGH" | "MEDIUM" | "LOW";
   confidenceReason: string;
+  signals: MarketSignals | null;
   whatToMonitor: string[];
   investigationPath: InvestigationPathStep[];
   /** Every run for this ticker, newest first, for the workspace Timeline. */
@@ -76,9 +94,11 @@ export interface InvestigationDetailResponse {
   companyName?: string | null;
   question?: string | null;
   status: "pending" | "completed" | "failed";
+  asOfDate?: string | null;
   statusLabel?: "normal" | "attention" | "unclear" | null;
   driver?: LikelyDriver | null;
   confidence?: number | null;
+  signals?: unknown;
   confidenceReason?: string | null;
   whatChanged?: string | null;
   whyItMatters?: string | null;
@@ -197,10 +217,13 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
   });
 
   const score = detail.confidence ?? 0;
+  const signals = MarketSignalsSchema.safeParse(detail.signals);
+  const asOfDate = AsOfDateSchema.safeParse(detail.asOfDate);
   return {
     id: detail.id,
     ticker: detail.ticker ?? "",
     companyName: detail.companyName ?? "",
+    asOfDate: asOfDate.success ? asOfDate.data : null,
     question: detail.question ?? "",
     status:
       detail.status === "completed"
@@ -217,6 +240,7 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
     evidenceCards,
     confidence: score >= 0.7 ? "HIGH" : score >= 0.4 ? "MEDIUM" : "LOW",
     confidenceReason: detail.confidenceReason ?? "",
+    signals: signals.success ? signals.data : null,
     whatToMonitor: detail.whatToMonitorJson ?? [],
     investigationPath: toInvestigationPath(detail),
     timeline: toTimeline(detail.runs ?? [], detail.ticker ?? "", detail.id),

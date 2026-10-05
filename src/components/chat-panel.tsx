@@ -6,13 +6,13 @@
  * follow-ups for completed investigations, keeps answers grounded in the
  * investigation evidence, and may call Sectors tools for fresh data.
  */
-import { Button } from "@/components/ui/button";
 import { UiBlockView } from "@/components/ui-block";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toMessageParts } from "@/lib/conversation-view-model";
-import { INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
 import type { ConversationMessage } from "@/lib/investigation-view-model";
-import { LoaderCircle, MessageSquare, Send, Wrench } from "lucide-react";
+import { INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
+import { ChevronDown, LoaderCircle, Send, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { z } from "zod";
 
@@ -37,28 +37,34 @@ export function ChatPanel({
   investigationId,
   ticker,
   initialMessages,
+  isOpen,
+  onClose,
 }: {
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
+  isOpen: boolean;
+  onClose: () => void;
 }) {
   const inputId = useId();
-  const titleId = useId();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const titleId = useId();
+  const previousMessages = messages.slice(0, -2);
+  const recentMessages = messages.slice(-2);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Scroll only the message list, never the page, so opening a report does not
-  // jump the viewport down to the chat.
+  // Keep new turns in the thread, never scroll the report itself.
   useEffect(() => {
     const list = listRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
-  }, [messages.length, isSending]);
+    if (list && isOpen) list.scrollTop = list.scrollHeight;
+  }, [messages.length, isSending, isOpen]);
 
   async function sendMessage() {
     const message = draft.trim();
@@ -126,89 +132,174 @@ export function ChatPanel({
     }
   }
 
+  const suggestedQuestions = [
+    "Apa yang menjelaskan selisih dari IHSG?",
+    "Seberapa kuat sinyal volume ini?",
+    "Bukti apa yang masih belum tersedia?",
+  ];
+
+  function askSuggestedQuestion(question: string) {
+    setDraft(question);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  }
+
+  if (!isOpen) return null;
+
   return (
-    <section className="dashboard-panel space-y-4" aria-labelledby={titleId}>
-      <div>
-        <h2 id={titleId} className="panel-title flex items-center gap-2">
-          <MessageSquare className="size-4" aria-hidden />
-          Pertanyaan Lanjutan
-        </h2>
-        <p className="panel-subtitle">
-          Ajukan pertanyaan lanjutan tentang investigasi{" "}
-          <strong className="uppercase">{ticker}</strong> ini. Jawaban tetap bertumpu pada bukti
-          yang dikumpulkan dan bukan nasihat investasi.
-        </p>
-      </div>
-
-      <div
-        ref={listRef}
-        className="max-h-[28rem] space-y-3 overflow-y-auto pr-1"
-        aria-live="polite"
-      >
-        {messages.length === 0 && !isSending && (
-          <p className="text-xs text-muted-foreground">
-            Belum ada pertanyaan. Contoh: "Apakah arus dana asing ini berlanjut?"
-          </p>
-        )}
-
-        {messages.map((item) => (
-          <ChatBubble key={item.id} message={item} />
-        ))}
-
-        {isSending && (
-          <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
-            <LoaderCircle className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden />
-            <span className="flex flex-col gap-1">
-              <span className="text-foreground">Agent sedang menyusun jawaban…</span>
-              <span className="flex items-center gap-1.5 font-mono text-[11px]">
-                <Wrench className="size-3" aria-hidden />
-                Agent mungkin mengambil data terbaru dari Sectors.
-              </span>
-            </span>
+    <aside
+      id="investigation-chat-panel"
+      aria-labelledby={titleId}
+      className="relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-6 xl:bottom-6 xl:h-auto xl:w-[36rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0"
+    >
+      <div className="flex min-h-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-5 py-4">
+          <div>
+            <h2 id={titleId} className="text-base font-semibold">
+              Tanya agent
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Laporan {ticker} · Jawaban berbasis bukti
+            </p>
           </div>
-        )}
-      </div>
-
-      <p className="text-muted-foreground font-mono text-[10px] leading-relaxed italic">
-        {INVESTIGATION_DISCLAIMER}
-      </p>
-
-      {error && (
-        <p
-          className="border-destructive/50 bg-destructive/10 text-destructive rounded-lg border p-3 font-mono text-xs"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-2">
-        <Label htmlFor={inputId} className="text-xs font-medium">
-          Pertanyaan
-        </Label>
-        <textarea
-          id={inputId}
-          rows={2}
-          maxLength={MAX_MESSAGE_LENGTH}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={isSending}
-          placeholder={`Tanya tentang ${ticker}… (Enter untuk kirim, Shift+Enter untuk baris baru)`}
-          className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-        />
-        <div className="flex justify-end">
-          <Button type="submit" size="sm" disabled={isSending || draft.trim().length === 0}>
-            {isSending ? (
-              <LoaderCircle className="animate-spin" aria-hidden />
-            ) : (
-              <Send aria-hidden />
-            )}
-            {isSending ? "Mengirim…" : "Kirim"}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Tutup panel Tanya agent"
+            onClick={onClose}
+          >
+            <X aria-hidden />
           </Button>
+        </header>
+
+        <div
+          ref={listRef}
+          className="scrollbar-theme min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4"
+          aria-live="polite"
+        >
+          {messages.length === 0 && !isSending && (
+            <div className="space-y-3">
+              <p className="max-w-[38ch] text-sm leading-relaxed text-muted-foreground">
+                Tanyakan hal spesifik tentang pergerakan, sinyal, atau bukti yang belum tersedia.
+              </p>
+              <div
+                className="divide-y divide-border/50 border-y border-border/50"
+                role="group"
+                aria-label="Pertanyaan yang disarankan"
+              >
+                {suggestedQuestions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => askSuggestedQuestion(question)}
+                    className="block w-full py-3 text-left text-sm text-foreground/85 transition-colors hover:text-signal-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {previousMessages.length > 0 && (
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                <ChevronDown
+                  className="size-3.5 shrink-0 transition-transform group-open:rotate-180"
+                  aria-hidden
+                />
+                Lihat {previousMessages.length} pesan sebelumnya
+              </summary>
+              <div className="mt-3 space-y-3">
+                {previousMessages.map((item) => (
+                  <ChatBubble key={item.id} message={item} />
+                ))}
+              </div>
+            </details>
+          )}
+
+          {recentMessages.map((item) => (
+            <ChatBubble key={item.id} message={item} />
+          ))}
+
+          {isSending && (
+            <div className="flex items-start gap-2 border-y border-border/50 py-3 text-sm text-muted-foreground">
+              <LoaderCircle
+                className="mt-0.5 size-4 shrink-0 animate-spin text-signal-text"
+                aria-hidden
+              />
+              <span>
+                <span className="block text-foreground">Agent menyusun jawaban</span>
+                <span className="mt-1 block text-xs">
+                  Data Sectors tambahan mungkin sedang diperiksa.
+                </span>
+              </span>
+            </div>
+          )}
         </div>
-      </form>
-    </section>
+
+        <form
+          onSubmit={handleSubmit}
+          className="shrink-0 border-t border-border/60 px-4 py-4 sm:px-5"
+        >
+          {error && (
+            <p
+              className="text-destructive rounded border border-destructive/50 bg-destructive/10 p-3 text-sm"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <Label htmlFor={inputId} className="text-xs font-medium">
+              Pertanyaan lanjutan
+            </Label>
+            <span className="text-[10px] text-muted-foreground">Khusus laporan {ticker}</span>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-background/60 transition-colors focus-within:border-ring/70 focus-within:ring-2 focus-within:ring-ring/20">
+            <textarea
+              ref={textareaRef}
+              id={inputId}
+              rows={4}
+              maxLength={MAX_MESSAGE_LENGTH}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSending}
+              placeholder={`Contoh: bukti mana yang paling mendukung kesimpulan ${ticker}?`}
+              className="block max-h-40 min-h-28 w-full resize-y bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <div className="flex items-center justify-between gap-3 border-t border-border/50 px-3 py-2">
+              <span className="text-[10px] text-muted-foreground">
+                Enter kirim <span aria-hidden>·</span> Shift+Enter baris baru
+              </span>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="tabular font-mono text-[10px] text-muted-foreground">
+                  {draft.length}/{MAX_MESSAGE_LENGTH}
+                </span>
+                <Button
+                  type="submit"
+                  size="sm"
+                  aria-label={isSending ? "Mengirim pertanyaan" : "Kirim pertanyaan"}
+                  disabled={isSending || draft.trim().length === 0}
+                  className="h-8 px-3"
+                >
+                  {isSending ? (
+                    <LoaderCircle className="animate-spin" aria-hidden />
+                  ) : (
+                    <Send aria-hidden />
+                  )}
+                  {isSending ? "Mengirim…" : "Kirim"}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 max-w-[48ch] text-[10px] leading-relaxed text-muted-foreground">
+            {INVESTIGATION_DISCLAIMER}
+          </p>
+        </form>
+      </div>
+    </aside>
   );
 }
 
@@ -219,7 +310,7 @@ function ChatBubble({ message }: { message: ConversationMessage }) {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] space-y-2 rounded-lg border p-3 text-sm leading-relaxed ${
+        className={`max-w-full min-w-0 space-y-2 rounded-lg border p-3 text-sm leading-relaxed ${
           isUser
             ? "border-primary/40 bg-primary/10 text-foreground"
             : "border-border/60 bg-muted/20 text-foreground/90"
