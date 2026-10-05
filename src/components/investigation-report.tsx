@@ -111,6 +111,18 @@ export function InvestigationVerdict({ data }: { data: InvestigationData }) {
                 Belum terdukung: {silent.join(", ")}.
               </p>
             )}
+            {data.whatToMonitor.length > 0 && (
+              <div className="border-rule border-t pt-3">
+                <h3 className={VERDICT_LABEL}>Yang perlu dipantau</h3>
+                <ul className="text-foreground/90 mt-2 list-inside list-disc max-w-[68ch] space-y-1 text-sm">
+                  {data.whatToMonitor.map((item, idx) => (
+                    <li key={idx} className="leading-relaxed">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -224,32 +236,18 @@ export function InvestigationReport({
 
       {data.status === "COMPLETED" && (
         <>
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="dashboard-panel space-y-3">
-              <h3 className="panel-title">Yang Perlu Dipantau</h3>
-              {data.whatToMonitor.length > 0 ? (
-                <ul className="text-foreground/90 list-inside list-disc max-w-[68ch] space-y-2 text-sm">
-                  {data.whatToMonitor.map((item, idx) => (
-                    <li key={idx} className="leading-relaxed">
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted-foreground text-sm">Tidak ada hal yang perlu dipantau.</p>
-              )}
-            </div>
-
-            <div className="dashboard-panel space-y-3">
-              <h3 className="panel-title">Perbandingan dengan Investigasi Sebelumnya</h3>
-              <p className="text-muted-foreground max-w-[68ch] text-sm leading-relaxed">
-                {data.previousComparison || "Belum ada investigasi sebelumnya untuk ticker ini."}
-              </p>
-            </div>
+          <section className="dashboard-panel space-y-3">
+            <h3 className="panel-title">Perbandingan dengan Investigasi Sebelumnya</h3>
+            <p className="text-muted-foreground max-w-[68ch] text-sm leading-relaxed">
+              {data.previousComparison || "Belum ada investigasi sebelumnya untuk ticker ini."}
+            </p>
           </section>
 
           <footer className="border-rule border-t pt-4 text-center">
             <p className="text-muted-foreground font-mono text-xs italic">
+              Data pasar mengikuti penutupan harian, bukan data real-time.
+            </p>
+            <p className="text-muted-foreground mt-2 font-mono text-xs italic">
               Disclaimer: {INVESTIGATION_DISCLAIMER}
             </p>
           </footer>

@@ -3,13 +3,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard, useSession } from "@/lib/session";
-import { DRIVER_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import {
   toWatchlistItems,
   type WatchlistDashboardResponse,
   type WatchlistItem,
 } from "@/lib/watchlist-view-model";
 import { rootRoute } from "@/routes/__root";
+import { DRIVER_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import { createRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle, Trash } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -87,7 +87,7 @@ function AppShell() {
   }
 
   const formatCurrency = (val: number | null) => {
-    if (val === null) return "—";
+    if (val === null) return "Tidak ada";
     // Watchlist tickers are IDX symbols, so the latest close is quoted in IDR.
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -285,7 +285,7 @@ function AppShell() {
                 >
                   <div className="min-w-0">
                     <h3 className="ticker-symbol">{item.ticker}</h3>
-                    <p className="ticker-company">{item.companyName || "—"}</p>
+                    <p className="ticker-company">{item.companyName || "Perusahaan belum diisi"}</p>
                   </div>
 
                   <dl className="ticker-row-meta">
@@ -297,11 +297,13 @@ function AppShell() {
                     </div>
                     <div>
                       <dt>Perhatian</dt>
-                      <dd>{item.statusLabel ? STATUS_LABEL_TEXT[item.statusLabel] : "—"}</dd>
+                      <dd>
+                        {item.statusLabel ? STATUS_LABEL_TEXT[item.statusLabel] : "Belum ada"}
+                      </dd>
                     </div>
                     <div>
                       <dt>Driver</dt>
-                      <dd>{item.driver ? DRIVER_TEXT[item.driver] : "—"}</dd>
+                      <dd>{item.driver ? DRIVER_TEXT[item.driver] : "Belum ada"}</dd>
                     </div>
                     <div>
                       <dt>Jumlah run</dt>

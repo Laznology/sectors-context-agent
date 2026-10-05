@@ -1,12 +1,12 @@
-import { useState, type FormEvent } from "react";
-import { Link, createRoute, useNavigate } from "@tanstack/react-router";
+import { SignalReadout } from "@/components/signal-readout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard } from "@/lib/session";
 import { rootRoute } from "@/routes/__root";
-import { SignalReadout } from "@/components/signal-readout";
+import { Link, createRoute, useNavigate } from "@tanstack/react-router";
+import { useState, type FormEvent } from "react";
 
 import "@/index.css";
 
@@ -58,7 +58,7 @@ function SignUpForm() {
             milik Anda sendiri.
           </>
         }
-        description="Simpan watchlist, jalankan investigasi kapan saja, dan ikuti perkembangan cerita antar sesi — bukti tetap menempel pada setiap kesimpulan."
+        description="Simpan watchlist, jalankan investigasi kapan saja, dan ikuti perkembangan cerita antar sesi. Bukti tetap menempel pada setiap kesimpulan."
       />
 
       <section className="auth-card">

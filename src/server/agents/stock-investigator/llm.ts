@@ -28,7 +28,23 @@ const MODEL_MAX_RETRIES = Number(process.env.MODEL_MAX_RETRIES ?? 2);
  */
 export const OUTPUT_LANGUAGE_INSTRUCTION =
   "Write every user-facing string in Bahasa Indonesia (Indonesian). " +
-  "Keep identifiers, enum values, tool names, JSON keys, and numbers unchanged.";
+  "Identifiers, enum values, tool names, JSON keys, and numbers stay unchanged " +
+  "inside structured fields; inside running prose, say them in plain Indonesian words instead.";
+
+/**
+ * The reader is an Indonesian retail investor, not a quant. Reading "relativeReturn
+ * 0,19" or a bare MARKET_DRIVEN token in the first line of the verdict reads as
+ * gibberish and costs the report its credibility. This covers every prose field the
+ * model writes, not just the headline one: the internal vocabulary below is what the
+ * pipeline calls things internally, and none of it survives into product copy.
+ */
+export const PLAIN_LANGUAGE_INSTRUCTION =
+  "Write every string in plain Indonesian for a retail investor, never for a quant or for " +
+  "the pipeline itself. Do not use internal vocabulary anywhere in prose: field names " +
+  "(relativeReturn, volumeRatio, zScore), raw enum tokens (MARKET_DRIVEN, HIGH), or words " +
+  "like 'deterministik', 'driver', 'klasifikasi', or 'sinyal'. Say what happened instead: " +
+  "'mengikuti pergerakan pasar', 'keyakinan sedang'. Lead with the practical meaning for the " +
+  "reader, not with the method.";
 
 /**
  * Appends the required response shape to a prompt.
@@ -94,12 +110,14 @@ export async function synthesizeWithModel(input: SynthesizerInput): Promise<Inve
       "Explain observations from supplied data only; never invent missing facts.",
       "Use deterministic signals for numeric claims and preserve evidence conflicts.",
       "Confidence must reflect evidence quality and uncertainty; explain it in confidenceReason.",
+      "confidenceReason, whatChanged, whyItMatters, and changesSincePrevious are at most two sentences each and state the practical meaning first, then what limits it. explanation is the one longer narrative and may run to a short paragraph.",
       "Set status to 'attention' when the move is unusual or evidence is conflicting, 'normal' when the move is unremarkable, and 'unclear' when evidence is insufficient.",
       "whatToMonitor must contain 2 or 3 concrete, checkable items (never more than 3), not generic advice.",
       "evidenceSummary must have one entry for every evidence category that was checked, with a short finding and an importance of high, medium, or low. If a category was checked but produced no notable finding, say so explicitly instead of omitting it.",
       "Never produce BUY, SELL, or HOLD advice, trade instructions, guaranteed returns, or price targets as facts.",
       "Use concise product language: analysis, context, evidence, attention, confidence, and monitoring.",
       OUTPUT_LANGUAGE_INSTRUCTION,
+      PLAIN_LANGUAGE_INSTRUCTION,
       "Return only the requested structured result; do not include private reasoning.",
       `Ticker: ${input.ticker}`,
       `Question: ${input.question ?? "Explain the recent movement and what to monitor."}`,

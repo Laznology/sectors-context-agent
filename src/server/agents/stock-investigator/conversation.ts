@@ -1,8 +1,8 @@
 import { generateText, isStepCount, tool, type ToolSet } from "ai";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { splitBlocksFromAnswer } from "../../../shared/schemas/ui-blocks.ts";
 import { INVESTIGATION_DISCLAIMER } from "../../../shared/schemas/investigation.ts";
+import { splitBlocksFromAnswer } from "../../../shared/schemas/ui-blocks.ts";
 import { synthesizerModel } from "../../ai/gateway.ts";
 import type {
   ConversationRecord,
@@ -13,7 +13,7 @@ import { createSectorsMcpClient } from "../../sectors/mcp.ts";
 import type { ToolDefinition } from "../../tools/index.ts";
 import { sectorsInvestigationTools } from "../../tools/sectors.ts";
 import { toPlainAnswer } from "./answer-format.ts";
-import { OUTPUT_LANGUAGE_INSTRUCTION } from "./llm.ts";
+import { OUTPUT_LANGUAGE_INSTRUCTION, PLAIN_LANGUAGE_INSTRUCTION } from "./llm.ts";
 import {
   EvidenceItemSchema,
   ToolCallRecordSchema,
@@ -77,6 +77,7 @@ export async function runInvestigationConversation(
         "Do not expose private reasoning. Return a concise evidence-grounded answer and state uncertainty.",
         FOLLOW_UP_STYLE_INSTRUCTION,
         OUTPUT_LANGUAGE_INSTRUCTION,
+        PLAIN_LANGUAGE_INSTRUCTION,
         INVESTIGATION_DISCLAIMER,
       ].join(" "),
       prompt:

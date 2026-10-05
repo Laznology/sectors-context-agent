@@ -57,7 +57,7 @@ function SignInForm() {
             seperti sebuah instrumen.
           </>
         }
-        description="Agent mengumpulkan bukti pasar, sektor, aliran dana, broker, berita, dan laporan, lalu menyebut driver yang paling mungkin — lengkap dengan tingkat keyakinan yang bisa diaudit."
+        description="Agent mengumpulkan bukti pasar, sektor, aliran dana, broker, berita, dan laporan, lalu menyebut penyebab yang paling mungkin, lengkap dengan tingkat keyakinan yang bisa diaudit."
       />
 
       <section className="auth-card">
