@@ -45,11 +45,12 @@ const DISCLOSURE_COUNT =
 const CHEVRON = "size-3.5 shrink-0 transition-transform group-open:rotate-180";
 
 /**
- * Driver, confidence, and the basis for that confidence as one verdict, so the
- * answer lands before the reader scrolls. Exported on its own so the page can
- * slot the follow-up chat between the verdict and the long-form body.
- * Every line is derived from the run data: no claim here goes beyond what the
- * agent reported.
+ * The answer leads. The plain-language sentence is the largest prose on the page,
+ * because a retail investor should be able to stop reading there; the driver and
+ * confidence badges are the classification of that sentence, not the answer
+ * itself. Exported on its own so the page can slot the follow-up chat directly
+ * after the verdict. Every line is derived from the run data: no claim here goes
+ * beyond what the agent reported.
  */
 export function InvestigationVerdict({ data }: { data: InvestigationData }) {
   const showConfidence = data.status === "COMPLETED";
@@ -69,63 +70,64 @@ export function InvestigationVerdict({ data }: { data: InvestigationData }) {
         )}
       </div>
 
-      {/* The two verdict values share one baseline and one bottom edge; the reason
-                    takes the whole remaining width instead of a narrow strip. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)] lg:items-center lg:gap-x-8">
-        <div className="flex flex-wrap justify-between gap-x-6 gap-y-3">
-          <div className="space-y-2">
-            <h3 className={VERDICT_LABEL}>Penyebab pergerakan</h3>
-            <span
-              className={`inline-flex rounded-lg border px-4 py-2 font-serif text-2xl font-bold tracking-tight uppercase ${DRIVER_STYLE[data.likelyDriver]}`}
-            >
-              {DRIVER_TEXT[data.likelyDriver]}
-            </span>
-          </div>
+      {/* The answer, at reading size. */}
+      {data.confidenceReason && (
+        <p className="text-foreground max-w-[60ch] text-lg leading-relaxed text-pretty">
+          {data.confidenceReason}
+        </p>
+      )}
 
-          {showConfidence && (
-            <div className="flex flex-col gap-2">
-              <h3 className={VERDICT_LABEL}>Keyakinan</h3>
-              <span
-                className={`badge mt-auto w-fit px-3.5 py-2 text-sm ${CONFIDENCE_CLASS[data.confidence]}`}
-              >
-                {CONFIDENCE_TEXT[data.confidence]}
-              </span>
-            </div>
-          )}
+      {/* Classification of that answer: two values sharing one baseline and one
+                    bottom edge, so they read as one row rather than two panels
+                    with a column of dead space between them. */}
+      <div className="border-rule flex flex-wrap items-end gap-x-8 gap-y-3 border-t pt-4">
+        <div className="space-y-2">
+          <h3 className={VERDICT_LABEL}>Penyebab pergerakan</h3>
+          <span
+            className={`inline-flex rounded-lg border px-4 py-2 font-serif text-2xl font-bold tracking-tight uppercase ${DRIVER_STYLE[data.likelyDriver]}`}
+          >
+            {DRIVER_TEXT[data.likelyDriver]}
+          </span>
         </div>
 
         {showConfidence && (
-          <div className="space-y-3 lg:border-rule lg:border-l lg:pl-8">
-            {collected.length > 0 && (
-              <p className="text-foreground/70 text-xs leading-relaxed text-pretty">
-                Berdasarkan {collected.length} dari {total} kategori bukti yang menghasilkan temuan.
-              </p>
-            )}
-            {data.confidenceReason && (
-              <p className="text-foreground/90 max-w-[68ch] text-base leading-relaxed text-pretty">
-                {data.confidenceReason}
-              </p>
-            )}
-            {partial && (
-              <p className="text-muted-foreground max-w-[68ch] text-xs leading-relaxed text-pretty">
-                Belum terdukung: {silent.join(", ")}.
-              </p>
-            )}
-            {data.whatToMonitor.length > 0 && (
-              <div className="border-rule border-t pt-3">
-                <h3 className={VERDICT_LABEL}>Yang perlu dipantau</h3>
-                <ul className="text-foreground/90 mt-2 list-inside list-disc max-w-[68ch] space-y-1 text-sm">
-                  {data.whatToMonitor.map((item, idx) => (
-                    <li key={idx} className="leading-relaxed">
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="space-y-2">
+            <h3 className={VERDICT_LABEL}>Keyakinan</h3>
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className={`badge px-3.5 py-2 text-sm ${CONFIDENCE_CLASS[data.confidence]}`}>
+                {CONFIDENCE_TEXT[data.confidence]}
+              </span>
+              {collected.length > 0 && (
+                <span className="text-muted-foreground text-xs">
+                  {collected.length} dari {total} jenis data
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      {showConfidence && (
+        <div className="space-y-4">
+          {partial && (
+            <p className="text-foreground/70 max-w-[68ch] text-sm leading-relaxed text-pretty">
+              Tidak ada bukti yang mendukung: {silent.join(", ")}.
+            </p>
+          )}
+          {data.whatToMonitor.length > 0 && (
+            <div className="border-rule border-t pt-4">
+              <h3 className={VERDICT_LABEL}>Yang perlu dipantau</h3>
+              <ul className="text-foreground/90 mt-2 list-inside list-disc max-w-[68ch] space-y-1 text-sm">
+                {data.whatToMonitor.map((item, idx) => (
+                  <li key={idx} className="leading-relaxed">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
