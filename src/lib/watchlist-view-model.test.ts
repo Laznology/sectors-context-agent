@@ -34,15 +34,16 @@ describe("toWatchlistItems", () => {
       ticker: "ANTM",
       companyName: "Aneka Tambang Tbk.",
       latestClose: 3340,
+      latestCloseDate: "2026-10-02",
       investigationStatus: "COMPLETED",
       lastInvestigatedAt: "2026-10-02T01:05:00.000Z",
       investigationId: "inv-1",
       driver: "FLOW_DRIVEN",
-      statusLabel: "ATTENTION",
+      statusLabel: "attention",
       runCount: 3,
       continuity: "FRESH",
       primaryAction: "OPEN_REPORT",
-      actionReason: "Report from 2 Oct",
+      actionReason: "Laporan dari 2 Okt",
     });
   });
 
@@ -50,12 +51,13 @@ describe("toWatchlistItems", () => {
     const card = item({ ticker: "BBCA", createdAt: "2026-09-19T00:00:00.000Z" });
 
     expect(card.investigationStatus).toBe("NONE");
+    expect(card.latestCloseDate).toBeNull();
     expect(card.driver).toBeNull();
     expect(card.statusLabel).toBeNull();
     expect(card.runCount).toBe(0);
     expect(card.continuity).toBe("NONE");
     expect(card.primaryAction).toBe("INVESTIGATE");
-    expect(card.actionReason).toBe("No investigation yet");
+    expect(card.actionReason).toBe("Belum ada investigasi");
   });
 
   it("offers Open report while a run is still in progress", () => {
@@ -76,7 +78,7 @@ describe("toWatchlistItems", () => {
 
     expect(card.continuity).toBe("RUNNING");
     expect(card.primaryAction).toBe("OPEN_REPORT");
-    expect(card.actionReason).toBe("Investigation in progress");
+    expect(card.actionReason).toBe("Investigasi sedang berjalan");
   });
 
   it("offers Update when a newer session exists than the last run", () => {
@@ -97,7 +99,7 @@ describe("toWatchlistItems", () => {
 
     expect(card.continuity).toBe("STALE");
     expect(card.primaryAction).toBe("UPDATE");
-    expect(card.actionReason).toBe("New session available since your last run");
+    expect(card.actionReason).toBe("Sesi data baru tersedia sejak investigasi terakhir");
   });
 
   it("treats a failed last run as having no current report", () => {
@@ -156,7 +158,7 @@ describe("toWatchlistItems", () => {
       },
     });
 
-    expect(card.statusLabel).toBe("UNCLEAR");
+    expect(card.statusLabel).toBe("unclear");
     expect(card.continuity).toBe("FRESH");
     expect(card.primaryAction).toBe("OPEN_REPORT");
   });
@@ -179,6 +181,6 @@ describe("toWatchlistItems", () => {
 
     expect(card.lastInvestigatedAt).toBe("2026-10-02T01:00:00.000Z");
     expect(card.continuity).toBe("FRESH");
-    expect(card.actionReason).toBe("Report from 2 Oct");
+    expect(card.actionReason).toBe("Laporan dari 2 Okt");
   });
 });

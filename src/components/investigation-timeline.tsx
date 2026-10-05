@@ -1,14 +1,13 @@
 import type { TimelineEntry } from "@/lib/history-view-model";
+import { CONFIDENCE_TEXT, DRIVER_TEXT } from "@/shared/schemas/investigation.ts";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 const STATUS_TEXT: Record<TimelineEntry["status"], string> = {
-  COMPLETED: "Completed",
-  IN_PROGRESS: "In progress",
-  FAILED: "Failed",
+  COMPLETED: "Selesai",
+  IN_PROGRESS: "Berjalan",
+  FAILED: "Gagal",
 };
-
-const CONFIDENCE_TEXT = { HIGH: "High", MEDIUM: "Medium", LOW: "Low" } as const;
 
 /** Runs shown before the list collapses; a busy ticker can have dozens. */
 const VISIBLE_RUNS = 5;
@@ -51,7 +50,7 @@ export function InvestigationTimeline({
           onClick={() => setShowAll(true)}
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 w-full rounded-lg py-2 font-mono text-[11px] tracking-wider uppercase outline-none focus-visible:ring-3"
         >
-          Show {hiddenCount} earlier run{hiddenCount === 1 ? "" : "s"}
+          Tampilkan {hiddenCount} investigasi sebelumnya
         </button>
       )}
       {showAll && entries.length > VISIBLE_RUNS && (
@@ -60,7 +59,7 @@ export function InvestigationTimeline({
           onClick={() => setShowAll(false)}
           className="text-muted-foreground hover:text-foreground focus-visible:ring-ring/50 w-full rounded-lg py-2 font-mono text-[11px] tracking-wider uppercase outline-none focus-visible:ring-3"
         >
-          Show recent runs only
+          Tampilkan investigasi terbaru saja
         </button>
       )}
     </div>
@@ -87,16 +86,16 @@ function TimelineRow({
         </span>
         {entry.driver && (
           <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-            {entry.driver.replace(/_/g, " ")}
+            {DRIVER_TEXT[entry.driver]}
           </span>
         )}
         {entry.confidence && (
           <span className="text-muted-foreground text-[10px]">
-            {CONFIDENCE_TEXT[entry.confidence]} confidence
+            Keyakinan {CONFIDENCE_TEXT[entry.confidence].toLowerCase()}
           </span>
         )}
-        {entry.isCurrent && <span className="badge badge-signal ml-auto">Current</span>}
-        {!entry.isCurrent && isNewest && <span className="badge badge-ink ml-auto">Latest</span>}
+        {entry.isCurrent && <span className="badge badge-signal ml-auto">Saat ini</span>}
+        {!entry.isCurrent && isNewest && <span className="badge badge-ink ml-auto">Terbaru</span>}
       </div>
       {entry.summary && (
         <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
@@ -105,7 +104,7 @@ function TimelineRow({
       )}
       {entry.delta && (
         <p className="text-foreground/85 text-xs leading-relaxed">
-          <span className="text-muted-foreground">Change since previous: </span>
+          <span className="text-muted-foreground">Perubahan sejak investigasi sebelumnya: </span>
           {entry.delta}
         </p>
       )}
@@ -121,7 +120,7 @@ function TimelineRow({
       <Link
         to="/investigations/$ticker"
         params={{ ticker: entry.id }}
-        aria-label={`Open the ${ticker} investigation from ${formatDate(entry.date)}`}
+        aria-label={`Buka investigasi ${ticker} tanggal ${formatDate(entry.date)}`}
         className="focus-visible:ring-ring/50 block rounded-lg p-3 outline-none focus-visible:ring-3"
       >
         {body}

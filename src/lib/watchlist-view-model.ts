@@ -3,9 +3,11 @@
  * into the shape the dashboard cards render from, including the continuity
  * state and the primary action that follows from it.
  */
-import type {
-  InvestigationDriver,
-  InvestigationStatusLabel,
+import {
+  InvestigationDriverSchema,
+  InvestigationStatusLabelSchema,
+  type InvestigationDriver,
+  type InvestigationStatusLabel,
 } from "../shared/schemas/investigation.ts";
 import { hasNewerSession, latestAvailableSession } from "./session-freshness.ts";
 
@@ -15,12 +17,6 @@ export type WatchlistInvestigationStatus =
   | "COMPLETED"
   | "FAILED"
   | "NONE";
-
-/** The shared driver vocabulary, upper-cased for display. */
-export type WatchlistDriver = InvestigationDriver;
-
-/** The shared attention state, upper-cased for display. */
-export type WatchlistStatusLabel = Uppercase<InvestigationStatusLabel>;
 
 /** Whether the ticker has a story, and whether that story is still current. */
 export type Continuity = "NONE" | "RUNNING" | "FRESH" | "STALE";
@@ -33,11 +29,12 @@ export interface WatchlistItem {
   ticker: string;
   companyName: string;
   latestClose: number | null;
+  latestCloseDate: string | null;
   investigationStatus: WatchlistInvestigationStatus;
   lastInvestigatedAt: string | null;
   investigationId: string | null;
-  driver: WatchlistDriver | null;
-  statusLabel: WatchlistStatusLabel | null;
+  driver: InvestigationDriver | null;
+  statusLabel: InvestigationStatusLabel | null;
   runCount: number;
   continuity: Continuity;
   primaryAction: PrimaryAction;
@@ -65,21 +62,6 @@ export interface WatchlistDashboardResponse {
   }[];
 }
 
-const DRIVERS = new Set<string>([
-  "MARKET_DRIVEN",
-  "SECTOR_DRIVEN",
-  "FLOW_DRIVEN",
-  "COMPANY_SPECIFIC",
-  "MIXED",
-  "UNCLEAR",
-]);
-
-const STATUS_LABELS: Record<string, WatchlistStatusLabel> = {
-  normal: "NORMAL",
-  attention: "ATTENTION",
-  unclear: "UNCLEAR",
-};
-
 /**
  * Collapses the pipeline's fine-grained stages into the four states a card
  * badge shows. Anything still running reads as IN_PROGRESS.
@@ -91,9 +73,9 @@ function toInvestigationStatus(status: string | null | undefined): WatchlistInve
   return "IN_PROGRESS";
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
-/** `2026-10-02` reads as `2 Oct`, matching the interface's English chrome. */
+/** `2026-10-02` reads as `2 Okt`, matching the interface's Indonesian chrome. */
 function formatShortDate(isoDate: string): string {
   const [, month, day] = isoDate.slice(0, 10).split("-");
   const monthName = MONTHS[Number(month) - 1];
@@ -116,7 +98,7 @@ function resolveContinuity(input: {
     return {
       continuity: "RUNNING",
       primaryAction: "OPEN_REPORT",
-      actionReason: "Investigation in progress",
+      actionReason: "Investigasi sedang berjalan",
     };
   }
 
@@ -124,7 +106,7 @@ function resolveContinuity(input: {
     return {
       continuity: "NONE",
       primaryAction: "INVESTIGATE",
-      actionReason: "No investigation yet",
+      actionReason: "Belum ada investigasi",
     };
   }
 
@@ -135,14 +117,14 @@ function resolveContinuity(input: {
     return {
       continuity: "STALE",
       primaryAction: "UPDATE",
-      actionReason: "New session available since your last run",
+      actionReason: "Sesi data baru tersedia sejak investigasi terakhir",
     };
   }
 
   return {
     continuity: "FRESH",
     primaryAction: "OPEN_REPORT",
-    actionReason: label ? `Report from ${label}` : "Report available",
+    actionReason: label ? `Laporan dari ${label}` : "Laporan tersedia",
   };
 }
 
@@ -161,18 +143,15 @@ export function toWatchlistItems(
   return (response.watchlist ?? []).map((entry) => {
     const investigation = entry.lastInvestigation ?? null;
     const investigationStatus = toInvestigationStatus(investigation?.status);
-    const driver =
-      investigation?.driver && DRIVERS.has(investigation.driver)
-        ? (investigation.driver as WatchlistDriver)
-        : null;
-    const statusLabel = investigation?.statusLabel
-      ? (STATUS_LABELS[investigation.statusLabel] ?? null)
-      : null;
+    const driver = InvestigationDriverSchema.safeParse(investigation?.driver).data ?? null;
+    const statusLabel =
+      InvestigationStatusLabelSchema.safeParse(investigation?.statusLabel).data ?? null;
 
     return {
       ticker: entry.ticker,
       companyName: entry.companyName ?? "",
       latestClose: entry.lastClose ?? null,
+      latestCloseDate: entry.lastCloseDate ?? null,
       investigationStatus,
       lastInvestigatedAt: investigation
         ? (investigation.completedAt ?? investigation.createdAt)

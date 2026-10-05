@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { parseUiBlocks } from "./conversation-view-model.ts";
-import { toInvestigationData, toolLabel, toOpeningMessage } from "./investigation-view-model.ts";
+import { resolvePageStage, toInvestigationData, toolLabel } from "./investigation-view-model.ts";
 
 describe("toInvestigationData", () => {
   it("maps the API payload into the report view model", () => {
@@ -36,7 +35,7 @@ describe("toInvestigationData", () => {
     expect(result.investigationPath).toEqual([
       {
         toolName: "get_price_context",
-        label: "Price Context",
+        label: "Konteks Harga",
         reason: "baseline",
         status: "success",
         findings: ["Volume spike"],
@@ -44,7 +43,7 @@ describe("toInvestigationData", () => {
       },
       {
         toolName: "get_market_context",
-        label: "Market Context",
+        label: "Konteks Pasar",
         reason: "",
         status: "failure",
         findings: [],
@@ -61,8 +60,20 @@ describe("toInvestigationData", () => {
       toolCalls: [{ toolName: "get_company_context", status: "succeeded", durationMs: 5 }],
     });
 
-    expect(result.investigationPath[0].label).toBe("Company Context");
+    expect(result.investigationPath[0].label).toBe("Konteks Perusahaan");
     expect(result.investigationPath[0].findings).toEqual(["Company overview collected for ANTM."]);
+  });
+
+  it("attributes foreign-flow evidence to the fetch_foreign_flow alias", () => {
+    const result = toInvestigationData({
+      id: "inv-flow",
+      status: "completed",
+      evidence: [{ type: "foreign_flow", summary: "Net buy 12,4 M" }],
+      toolCalls: [{ toolName: "fetch_foreign_flow", status: "succeeded", durationMs: 7 }],
+    });
+
+    expect(result.investigationPath[0].label).toBe("Aliran Dana Asing");
+    expect(result.investigationPath[0].findings).toEqual(["Net buy 12,4 M"]);
   });
 
   it("builds ordered evidence cards and prefers the model finding", () => {
@@ -78,7 +89,7 @@ describe("toInvestigationData", () => {
     const foreignFlow = result.evidenceCards.find((card) => card.type === "foreign_flow");
     expect(foreignFlow).toEqual({
       type: "foreign_flow",
-      label: "Foreign Flow",
+      label: "Aliran Dana Asing",
       finding: "Inflow strengthened",
       importance: "high",
     });
@@ -86,7 +97,7 @@ describe("toInvestigationData", () => {
     const filing = result.evidenceCards.find((card) => card.type === "filing");
     expect(filing).toEqual({
       type: "filing",
-      label: "Filings",
+      label: "Laporan",
       finding: null,
       importance: null,
     });
@@ -110,6 +121,57 @@ describe("toInvestigationData", () => {
     );
   });
 
+  it("keeps the data session date for the report header", () => {
+    const result = toInvestigationData({
+      id: "inv-as-of",
+      status: "completed",
+      asOfDate: "2026-10-02",
+    });
+
+    expect(result.asOfDate).toBe("2026-10-02");
+  });
+
+  it("drops invalid session dates", () => {
+    const result = toInvestigationData({
+      id: "inv-bad-date",
+      status: "completed",
+      asOfDate: "not-a-date",
+    });
+
+    expect(result.asOfDate).toBeNull();
+  });
+
+  it("keeps validated deterministic signals for the insight workspace", () => {
+    const result = toInvestigationData({
+      id: "inv-signals",
+      status: "completed",
+      signals: {
+        latestPrice: 3140,
+        latestVolume: 27387000,
+        dailyReturn: 0.0064,
+        marketReturn: 0.0045,
+        relativeReturn: 0.0019,
+        averageVolume: 109716510,
+        volumeRatio: 0.25,
+        unusualMovement: false,
+      },
+    });
+
+    expect(result.signals?.latestPrice).toBe(3140);
+    expect(result.signals?.relativeReturn).toBe(0.0019);
+    expect(result.signals?.volumeRatio).toBe(0.25);
+  });
+
+  it("drops malformed deterministic signals instead of rendering them", () => {
+    const result = toInvestigationData({
+      id: "inv-bad-signals",
+      status: "completed",
+      signals: { latestPrice: "3140" },
+    });
+
+    expect(result.signals).toBeNull();
+  });
+
   it("defaults missing fields and grades confidence bands", () => {
     const result = toInvestigationData({ id: "inv-2", status: "pending" });
 
@@ -119,6 +181,8 @@ describe("toInvestigationData", () => {
     expect(result.status).toBe("IN_PROGRESS");
     expect(result.evidence).toEqual({});
     expect(result.whatToMonitor).toEqual([]);
+    expect(result.asOfDate).toBeNull();
+    expect(result.signals).toBeNull();
     expect(result.conversation).toEqual([]);
     expect(result.investigationPath).toEqual([]);
   });
@@ -145,9 +209,9 @@ describe("toInvestigationData", () => {
 });
 
 describe("toolLabel", () => {
-  it("maps known tools to human-readable labels", () => {
-    expect(toolLabel("get_foreign_flow")).toBe("Foreign Flow");
-    expect(toolLabel("mcp:get_broker_activity")).toBe("Broker Activity");
+  it("maps known tools to Indonesian labels", () => {
+    expect(toolLabel("get_foreign_flow")).toBe("Aliran Dana Asing");
+    expect(toolLabel("mcp:get_broker_activity")).toBe("Aktivitas Broker");
   });
 
   it("title-cases unknown tool names instead of leaking the identifier", () => {
@@ -198,95 +262,62 @@ describe("toInvestigationData timeline", () => {
   });
 });
 
-describe("toOpeningMessage", () => {
-  it("summarises a completed result as the thread's first turn", () => {
-    const data = toInvestigationData({
-      id: "inv-open",
-      ticker: "ANTM",
-      status: "completed",
-      driver: "FLOW_DRIVEN",
-      confidence: 0.8,
-      whatChanged: "Foreign inflow strengthened.",
-      whyItMatters: "Participation shifted.",
-    });
-
-    const message = toOpeningMessage(data);
-
-    expect(message?.role).toBe("assistant");
-    expect(message?.content).toContain("Foreign inflow strengthened.");
-    expect(message?.content).toContain("Participation shifted.");
-    expect(message?.content).toContain("FLOW DRIVEN");
-    expect(message?.content).toContain("HIGH");
+describe("resolvePageStage", () => {
+  it("shows progress while a run is live", () => {
+    expect(
+      resolvePageStage({ status: "IN_PROGRESS", isFetching: false, error: null, notFound: false }),
+    ).toBe("progress");
   });
 
-  it("returns null when there is no completed result to open with", () => {
-    const data = toInvestigationData({ id: "inv-run", status: "pending" });
-
-    expect(toOpeningMessage(data)).toBeNull();
+  it("shows the report once the run completes", () => {
+    expect(
+      resolvePageStage({ status: "COMPLETED", isFetching: false, error: null, notFound: false }),
+    ).toBe("report");
   });
 
-  it("attaches the driver and the key figures as blocks", () => {
-    const data = toInvestigationData({
-      id: "inv-blocks",
-      ticker: "ANTM",
-      status: "completed",
-      driver: "FLOW_DRIVEN",
-      confidence: 0.8,
-      whatChanged: "Foreign inflow strengthened.",
-      whyItMatters: "Participation shifted.",
-    });
-
-    const message = toOpeningMessage(data);
-    const types = parseUiBlocks(message?.uiBlocks).map((block) => block.type);
-
-    expect(types).toContain("driver");
-    expect(types).toContain("metric");
+  it("shows the report when the run failed, keeping the transition symmetric", () => {
+    expect(
+      resolvePageStage({ status: "FAILED", isFetching: false, error: null, notFound: false }),
+    ).toBe("report");
   });
 
-  it("includes the attention state as a metric block", () => {
-    const data = toInvestigationData({
-      id: "inv-attention",
-      ticker: "ANTM",
-      status: "completed",
-      statusLabel: "attention",
-      driver: "MIXED",
-      confidence: 0.5,
-      whatChanged: "Moved.",
-      whyItMatters: "Matters.",
-    });
-
-    const message = toOpeningMessage(data);
-    const metric = parseUiBlocks(message?.uiBlocks).find((block) => block.type === "metric");
-
-    expect(metric).toBeDefined();
+  it("shows the loading stage while no investigation has loaded yet", () => {
+    expect(resolvePageStage({ status: null, isFetching: true, error: null, notFound: false })).toBe(
+      "loading",
+    );
   });
 
-  it("omits the driver block when the result has no driver", () => {
-    const data = toInvestigationData({
-      id: "inv-nodriver",
-      ticker: "ANTM",
-      status: "completed",
-      whatChanged: "Moved.",
-      whyItMatters: "Matters.",
-    });
-
-    const message = toOpeningMessage(data);
-    const types = parseUiBlocks(message?.uiBlocks).map((block) => block.type);
-
-    expect(types).not.toContain("driver");
+  it("keeps the loading stage when the fetch failed without a report", () => {
+    expect(
+      resolvePageStage({
+        status: null,
+        isFetching: false,
+        error: "Could not load data",
+        notFound: false,
+      }),
+    ).toBe("loading");
   });
 
-  it("keeps the plain-text part readable on its own", () => {
-    const data = toInvestigationData({
-      id: "inv-text",
-      ticker: "ANTM",
-      status: "completed",
-      driver: "FLOW_DRIVEN",
-      confidence: 0.8,
-      whatChanged: "Foreign inflow strengthened.",
-      whyItMatters: "Participation shifted.",
-    });
+  it("shows progress when no run, fetch or error is in play", () => {
+    expect(
+      resolvePageStage({ status: null, isFetching: false, error: null, notFound: false }),
+    ).toBe("progress");
+  });
 
-    expect(toOpeningMessage(data)?.content).toContain("Foreign inflow strengthened.");
+  it("shows the empty stage when the ticker has no investigation", () => {
+    expect(resolvePageStage({ status: null, isFetching: false, error: null, notFound: true })).toBe(
+      "empty",
+    );
+  });
+
+  it("prioritises not-found over every other signal", () => {
+    expect(
+      resolvePageStage({
+        status: "COMPLETED",
+        isFetching: true,
+        error: "Could not load data",
+        notFound: true,
+      }),
+    ).toBe("empty");
   });
 });

@@ -101,7 +101,7 @@ export type InvestigationStatusLabel = z.infer<typeof InvestigationStatusLabelSc
 
 /** Required product disclaimer; the API never returns a result without it. */
 export const INVESTIGATION_DISCLAIMER =
-  "This analysis is informational and does not constitute investment advice.";
+  "Analisis ini bersifat informasi dan bukan nasihat investasi.";
 
 /** Confidence of the classification, normalised to 0..1. */
 export const InvestigationConfidenceSchema = z.number().min(0).max(1);
@@ -133,16 +133,42 @@ export type InvestigationRequest = z.infer<typeof InvestigationRequestSchema>;
 /** Display text for the attention state, shared by every surface that shows it. */
 export const STATUS_LABEL_TEXT: Record<InvestigationStatusLabel, string> = {
   normal: "Normal",
-  attention: "Needs attention",
-  unclear: "Unclear",
+  attention: "Perlu perhatian",
+  unclear: "Belum jelas",
 };
 
 /** Display text for each explanatory driver. */
 export const DRIVER_TEXT: Record<InvestigationDriver, string> = {
-  MARKET_DRIVEN: "Market driven",
-  SECTOR_DRIVEN: "Sector driven",
-  FLOW_DRIVEN: "Flow driven",
-  COMPANY_SPECIFIC: "Company specific",
-  MIXED: "Mixed",
-  UNCLEAR: "Unclear",
+  MARKET_DRIVEN: "Didorong pasar",
+  SECTOR_DRIVEN: "Didorong sektor",
+  FLOW_DRIVEN: "Didorong arus dana",
+  COMPANY_SPECIFIC: "Khusus perusahaan",
+  MIXED: "Campuran",
+  UNCLEAR: "Belum jelas",
+};
+
+/** Display text for the confidence level reported by the synthesis step. */
+export const CONFIDENCE_TEXT: Record<"HIGH" | "MEDIUM" | "LOW", string> = {
+  HIGH: "Tinggi",
+  MEDIUM: "Sedang",
+  LOW: "Rendah",
+};
+
+/** Display text for how much an evidence card mattered. */
+export const IMPORTANCE_TEXT: Record<"high" | "medium" | "low", string> = {
+  high: "Penting",
+  medium: "Sedang",
+  low: "Tidak penting",
+};
+
+/** Display text for each pipeline stage, so the progress grid never leaks a raw stage id. */
+export const PIPELINE_STEP_TEXT: Record<PipelineStatus, string> = {
+  pending: "Menunggu",
+  collecting_baseline: "Mengumpulkan data dasar",
+  calculating_signals: "Menghitung sinyal",
+  planning: "Menyusun rencana",
+  investigating: "Mengumpulkan bukti",
+  synthesizing: "Menyusun penjelasan",
+  completed: "Selesai",
+  failed: "Gagal",
 };

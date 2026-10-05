@@ -6,7 +6,9 @@ import { requireSession } from "../auth-middleware.ts";
 import { auth } from "../auth.ts";
 import { PostgresInvestigationStore } from "../db/investigations.ts";
 import { PostgresWatchlistStore } from "../db/watchlists.ts";
+import { searchCompaniesMock } from "../sectors/company-search-mock.ts";
 import { fetchCompanyOverview } from "../sectors/company.ts";
+import { createCompanySearchRoutes } from "./companies.ts";
 import { healthRoutes } from "./health.ts";
 import { createInvestigationRoutes, InvestigationRunManager } from "./investigations.ts";
 import { createWatchlistRoutes } from "./watchlist.ts";
@@ -18,6 +20,12 @@ apiRoutes.route("/", healthRoutes);
 apiRoutes.all("/auth/*", (c) => auth.handler(c.req.raw));
 
 apiRoutes.get("/me", requireSession, (c) => c.json({ user: c.get("session").user }));
+
+const companySearchRoutes = createCompanySearchRoutes({
+  authMiddleware: requireSession,
+  searchCompanies: searchCompaniesMock,
+});
+apiRoutes.route("/companies/search", companySearchRoutes);
 
 const investigationStore = new PostgresInvestigationStore();
 const investigationManager = new InvestigationRunManager(async (input, emit) => {

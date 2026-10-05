@@ -1,5 +1,4 @@
-import { STATUS_LABEL_TEXT } from "../shared/schemas/investigation.ts";
-import type { UiBlock } from "./conversation-view-model.ts";
+import { z } from "zod";
 import { toTimeline, type TimelineEntry } from "./history-view-model.ts";
 export type LikelyDriver =
   | "MARKET_DRIVEN"
@@ -40,10 +39,26 @@ export interface EvidenceCard {
   importance: EvidenceImportance | null;
 }
 
+const MarketSignalsSchema = z.object({
+  latestPrice: z.number().nullable(),
+  latestVolume: z.number().nullable(),
+  dailyReturn: z.number().nullable(),
+  marketReturn: z.number().nullable(),
+  relativeReturn: z.number().nullable(),
+  averageVolume: z.number().nullable(),
+  volumeRatio: z.number().nullable(),
+  unusualMovement: z.boolean(),
+});
+
+export type MarketSignals = z.infer<typeof MarketSignalsSchema>;
+
+const AsOfDateSchema = z.iso.date();
+
 export interface InvestigationData {
   id: string;
   ticker: string;
   companyName: string;
+  asOfDate: string | null;
   question: string;
   status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED";
   statusLabel: StatusLabel | null;
@@ -55,6 +70,7 @@ export interface InvestigationData {
   evidenceCards: EvidenceCard[];
   confidence: "HIGH" | "MEDIUM" | "LOW";
   confidenceReason: string;
+  signals: MarketSignals | null;
   whatToMonitor: string[];
   investigationPath: InvestigationPathStep[];
   /** Every run for this ticker, newest first, for the workspace Timeline. */
@@ -69,8 +85,7 @@ export interface ConversationMessage {
   content: string;
   /** Validated UI blocks attached to this turn; null for plain-text turns. */
   uiBlocks?: unknown;
-  /** Absent for the derived opening turn, which is not a persisted record. */
-  createdAt?: string;
+  createdAt: string;
 }
 
 export interface InvestigationDetailResponse {
@@ -79,9 +94,11 @@ export interface InvestigationDetailResponse {
   companyName?: string | null;
   question?: string | null;
   status: "pending" | "completed" | "failed";
+  asOfDate?: string | null;
   statusLabel?: "normal" | "attention" | "unclear" | null;
   driver?: LikelyDriver | null;
   confidence?: number | null;
+  signals?: unknown;
   confidenceReason?: string | null;
   whatChanged?: string | null;
   whyItMatters?: string | null;
@@ -134,24 +151,25 @@ const EVIDENCE_CATEGORIES = new Set<string>([
 ]);
 
 const EVIDENCE_CARDS: readonly { type: EvidenceCategory; label: string }[] = [
-  { type: "price_volume", label: "Price / Volume" },
-  { type: "market", label: "Market Context" },
-  { type: "sector", label: "Sector Context" },
-  { type: "foreign_flow", label: "Foreign Flow" },
-  { type: "broker", label: "Broker Activity" },
-  { type: "news", label: "News" },
-  { type: "filing", label: "Filings" },
+  { type: "price_volume", label: "Harga / Volume" },
+  { type: "market", label: "Konteks Pasar" },
+  { type: "sector", label: "Konteks Sektor" },
+  { type: "foreign_flow", label: "Aliran Dana Asing" },
+  { type: "broker", label: "Aktivitas Broker" },
+  { type: "news", label: "Berita" },
+  { type: "filing", label: "Laporan" },
 ];
 
 const TOOL_LABELS: Record<string, string> = {
-  get_price_context: "Price Context",
-  get_market_context: "Market Context",
-  get_company_context: "Company Context",
-  get_sector_context: "Sector Context",
-  get_foreign_flow: "Foreign Flow",
-  get_broker_activity: "Broker Activity",
-  get_company_news: "News",
-  get_company_filings: "Filings",
+  get_price_context: "Konteks Harga",
+  get_market_context: "Konteks Pasar",
+  get_company_context: "Konteks Perusahaan",
+  get_sector_context: "Konteks Sektor",
+  get_foreign_flow: "Aliran Dana Asing",
+  fetch_foreign_flow: "Aliran Dana Asing",
+  get_broker_activity: "Aktivitas Broker",
+  get_company_news: "Berita",
+  get_company_filings: "Laporan",
 };
 
 const EVIDENCE_TYPE_BY_TOOL: Record<string, string> = {
@@ -160,6 +178,9 @@ const EVIDENCE_TYPE_BY_TOOL: Record<string, string> = {
   get_company_context: "company",
   get_sector_context: "sector",
   get_foreign_flow: "foreign_flow",
+  // Observed at runtime alongside get_foreign_flow; without it the path step
+  // resolved no category and dropped the foreign-flow findings.
+  fetch_foreign_flow: "foreign_flow",
   get_broker_activity: "broker",
   get_company_news: "news",
   get_company_filings: "filing",
@@ -170,7 +191,7 @@ export function toolLabel(toolName: string): string {
   const known = TOOL_LABELS[bare];
   if (known) return known;
   return bare
-    .replace(/^get_/, "")
+    .replace(/^(get|fetch)_/, "")
     .replace(/[_-]+/g, " ")
     .trim()
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -196,10 +217,13 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
   });
 
   const score = detail.confidence ?? 0;
+  const signals = MarketSignalsSchema.safeParse(detail.signals);
+  const asOfDate = AsOfDateSchema.safeParse(detail.asOfDate);
   return {
     id: detail.id,
     ticker: detail.ticker ?? "",
     companyName: detail.companyName ?? "",
+    asOfDate: asOfDate.success ? asOfDate.data : null,
     question: detail.question ?? "",
     status:
       detail.status === "completed"
@@ -216,6 +240,7 @@ export function toInvestigationData(detail: InvestigationDetailResponse): Invest
     evidenceCards,
     confidence: score >= 0.7 ? "HIGH" : score >= 0.4 ? "MEDIUM" : "LOW",
     confidenceReason: detail.confidenceReason ?? "",
+    signals: signals.success ? signals.data : null,
     whatToMonitor: detail.whatToMonitorJson ?? [],
     investigationPath: toInvestigationPath(detail),
     timeline: toTimeline(detail.runs ?? [], detail.ticker ?? "", detail.id),
@@ -289,38 +314,33 @@ function categoryFromLabel(label: string): EvidenceCategory | null {
   return null;
 }
 
+/** The single block the investigation detail page renders for the current fetch state. */
+export type PageStage = "loading" | "empty" | "progress" | "report";
+
+export interface PageStageInput {
+  /** Status of the fetched investigation, null while none has loaded yet. */
+  status: InvestigationData["status"] | null;
+  isFetching: boolean;
+  error: string | null;
+  notFound: boolean;
+}
+
 /**
- * The investigation result as the conversation's first assistant turn.
+ * Resolves which stage of the detail page to render.
  *
- * The thread starts from the audited conclusion rather than a fresh generation,
- * so it cannot drift from the report. Returns null when there is no completed
- * result to open with.
+ * A `COMPLETED` or `FAILED` run has a report either way, so both resolve to the
+ * same stage and the transition into it stays symmetric. `loading` covers the
+ * whole no-report-yet fetch state: the block it drives shows a spinner while the
+ * request is in flight and the failure with its retry when it did not land.
  */
-export function toOpeningMessage(data: InvestigationData): ConversationMessage | null {
-  if (data.status !== "COMPLETED") return null;
-
-  const parts = [
-    data.whatChanged,
-    data.whyItMatters,
-    `Driver: ${data.likelyDriver.replace(/_/g, " ")}. Confidence: ${data.confidence}.`,
-  ].filter((part) => part.trim().length > 0);
-
-  const blocks: UiBlock[] = [{ type: "metric", label: "Confidence", value: data.confidence }];
-  if (data.likelyDriver !== "UNCLEAR") {
-    blocks.push({ type: "driver", driver: data.likelyDriver, confidence: data.confidence });
-  }
-  if (data.statusLabel) {
-    blocks.push({
-      type: "metric",
-      label: "Attention",
-      value: STATUS_LABEL_TEXT[data.statusLabel.toLowerCase() as keyof typeof STATUS_LABEL_TEXT],
-    });
-  }
-
-  return {
-    id: `opening-${data.id}`,
-    role: "assistant",
-    content: parts.join("\n\n"),
-    uiBlocks: blocks.length > 0 ? blocks : undefined,
-  };
+export function resolvePageStage({
+  status,
+  isFetching,
+  error,
+  notFound,
+}: PageStageInput): PageStage {
+  if (notFound) return "empty";
+  if (status === "COMPLETED" || status === "FAILED") return "report";
+  if (status === null && (isFetching || error !== null)) return "loading";
+  return "progress";
 }
