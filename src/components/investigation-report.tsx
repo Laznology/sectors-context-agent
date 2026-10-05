@@ -249,9 +249,9 @@ export function InvestigationReport({
       )}
 
       {data.evidenceCards.some((card) => card.finding !== null) && (
-        <section className="space-y-3">
+        <section className="dashboard-panel space-y-3">
           <details className="group">
-            <summary className={`${DISCLOSURE_SUMMARY} border-y border-rule py-3`}>
+            <summary className={DISCLOSURE_SUMMARY}>
               <ChevronDown className={CHEVRON} aria-hidden />
               <span className={DISCLOSURE_LABEL}>Bukti yang mendukung analisis</span>
               <span className={DISCLOSURE_COUNT}>
