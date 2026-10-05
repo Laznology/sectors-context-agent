@@ -1,4 +1,6 @@
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { readFileSync } from "node:fs";
 import "dotenv/config";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -41,9 +43,25 @@ app.onError((error, context) => {
   return context.json({ error: "Internal server error" }, 500);
 });
 
-app.notFound((context) =>
-  context.json({ error: `No route for ${context.req.method} ${context.req.path}` }, 404),
-);
+// Client-side routes (/sign-in, /investigations/BBRI) are not files: any GET
+// outside /api gets the built shell. Read once at boot; dist/ is absent in dev,
+// where Vite serves the shell itself.
+const spaShell = (() => {
+  try {
+    return readFileSync(new URL("../../dist/index.html", import.meta.url), "utf8");
+  } catch {
+    return undefined;
+  }
+})();
+
+app.notFound((context) => {
+  const path = context.req.path;
+  if (spaShell && context.req.method === "GET" && !path.startsWith("/api")) {
+    context.header("Cache-Control", "no-cache");
+    return context.html(spaShell);
+  }
+  return context.json({ error: `No route for ${context.req.method} ${path}` }, 404);
+});
 
 const MAX_BODY_BYTES = 64 * 1024;
 app.use("*", async (context, next) => {
@@ -55,6 +73,15 @@ app.use("*", async (context, next) => {
 });
 
 app.route("/api", apiRoutes);
+
+// Production serves the built SPA from this same process: one port, one image.
+// ponytail: hashed filenames make /assets immutable; index.html is revalidated.
+// Move assets behind a CDN when static traffic outnumbers /api traffic.
+app.use("/assets/*", async (context, next) => {
+  context.header("Cache-Control", "public, max-age=31536000, immutable");
+  await next();
+});
+app.use("/assets/*", serveStatic({ root: "./dist" }));
 
 const port = Number(process.env.PORT ?? 3001);
 

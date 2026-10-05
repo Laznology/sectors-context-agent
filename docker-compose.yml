@@ -17,5 +17,22 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build: .
+    image: sectors-context-agent
+    container_name: sectors-context-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${POSTGRES_USER:-sectors}:${POSTGRES_PASSWORD:-sectors}@postgres:5432/${POSTGRES_DB:-sectors}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
 volumes:
   pgdata:
