@@ -87,7 +87,7 @@ function AppShell() {
   }
 
   const formatCurrency = (val: number | null) => {
-    if (val === null) return "Harga belum tersedia";
+    if (val === null) return "—";
     // Watchlist tickers are IDX symbols, so the latest close is quoted in IDR.
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
