@@ -40,7 +40,7 @@ function SignInForm() {
 
     setIsSubmitting(false);
     if (result.error) {
-      setError(result.error.message ?? "Authentication failed");
+      setError(result.error.message ?? "Autentikasi gagal.");
       return;
     }
     await navigate({ to: "/" });
@@ -49,15 +49,15 @@ function SignInForm() {
   return (
     <div className="auth-grid">
       <SignalReadout
-        eyebrow="Sign in"
+        eyebrow="Masuk"
         title={
           <>
-            Read the market
+            Baca pasar
             <br />
-            like an instrument.
+            seperti sebuah instrumen.
           </>
         }
-        description="The agent gathers market, sector, flow, broker, news and filing evidence, then states the likely driver — with an explicit confidence you can audit."
+        description="Agent mengumpulkan bukti pasar, sektor, aliran dana, broker, berita, dan laporan, lalu menyebut driver yang paling mungkin — lengkap dengan tingkat keyakinan yang bisa diaudit."
       />
 
       <section className="auth-card">
@@ -79,7 +79,7 @@ function SignInForm() {
 
           <div className="auth-field">
             <Label htmlFor="password" className="auth-label">
-              Password
+              Kata Sandi
             </Label>
             <Input
               id="password"
@@ -99,20 +99,20 @@ function SignInForm() {
           )}
 
           <Button type="submit" disabled={isSubmitting} className="w-full font-medium mt-2">
-            {isSubmitting ? "Working…" : "Sign in"}
+            {isSubmitting ? "Memproses…" : "Masuk"}
           </Button>
         </form>
 
         <p className="auth-footer-text">
-          No account yet?{" "}
+          Belum punya akun?{" "}
           <Link to="/sign-up" className="auth-link">
-            Create one
+            Buat akun
           </Link>
         </p>
 
         <div className="border-rule bg-ink/4 mt-6 space-y-1 rounded-lg border p-3">
           <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
-            Demo account
+            Akun demo
           </p>
           <p className="text-muted-foreground font-mono text-[11px]">
             demo@example.com · demo-password-123

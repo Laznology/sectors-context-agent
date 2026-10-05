@@ -9,25 +9,25 @@ const STATUS_STYLE: Record<
     icon: Check,
     iconClass: "bg-signal text-signal-ink",
     borderClass: "border-ink/12",
-    label: "Completed",
+    label: "Selesai",
   },
   failure: {
     icon: TriangleAlert,
     iconClass: "bg-destructive/20 text-destructive",
     borderClass: "border-destructive/40",
-    label: "Failed",
+    label: "Gagal",
   },
   skipped: {
     icon: MinusCircle,
     iconClass: "bg-muted text-muted-foreground",
     borderClass: "border-border/40",
-    label: "Skipped",
+    label: "Dilewati",
   },
   running: {
     icon: LoaderCircle,
     iconClass: "bg-signal/25 text-signal-text",
     borderClass: "border-signal/45",
-    label: "Running",
+    label: "Berjalan",
   },
 };
 
@@ -48,7 +48,7 @@ export function InvestigationPath({ steps }: { steps: readonly InvestigationPath
             className="size-3.5 transition-transform group-open:rotate-180"
             aria-hidden
           />
-          Technical details
+          Detail teknis
         </summary>
         <ul className="text-muted-foreground mt-2 space-y-1 font-mono text-[11px]">
           {steps.map((step, index) => (
@@ -99,7 +99,9 @@ function PathStep({ step }: { step: InvestigationPathStep }) {
             </ul>
           ) : (
             step.status === "success" && (
-              <p className="text-muted-foreground text-xs">No notable finding recorded.</p>
+              <p className="text-muted-foreground text-xs">
+                Tidak ada temuan berarti yang tercatat.
+              </p>
             )
           )}
         </div>

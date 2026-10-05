@@ -1,4 +1,4 @@
-import { DRIVER_TEXT } from "@/shared/schemas/investigation.ts";
+import { CONFIDENCE_TEXT, DRIVER_TEXT } from "@/shared/schemas/investigation.ts";
 import type { UiBlock } from "@/lib/conversation-view-model";
 import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 
@@ -91,7 +91,7 @@ function SeriesBlock({ block }: { block: Extract<UiBlock, { type: "series" }> })
         viewBox={`0 0 ${width} ${height}`}
         className="h-10 w-full"
         role="img"
-        aria-label={`${block.title}: ${values.length} points from ${values[0]} to ${values[values.length - 1]}`}
+        aria-label={`${block.title}: ${values.length} titik dari ${values[0]} sampai ${values[values.length - 1]}`}
         preserveAspectRatio="none"
       >
         <path
@@ -103,7 +103,7 @@ function SeriesBlock({ block }: { block: Extract<UiBlock, { type: "series" }> })
         />
       </svg>
       <p className="text-muted-foreground tabular mt-1 text-[11px]">
-        {block.points[0].date} to {block.points[block.points.length - 1].date}
+        {block.points[0].date} sampai {block.points[block.points.length - 1].date}
       </p>
     </Frame>
   );
@@ -113,11 +113,11 @@ function DriverBlock({ block }: { block: Extract<UiBlock, { type: "driver" }> })
   return (
     <Frame>
       <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-        Likely driver
+        Driver yang paling mungkin
       </p>
       <p className="mt-1 flex flex-wrap items-center gap-2">
         <span className="badge badge-signal">{DRIVER_TEXT[block.driver]}</span>
-        <span className="badge badge-ink">{block.confidence} confidence</span>
+        <span className="badge badge-ink">keyakinan {CONFIDENCE_TEXT[block.confidence]}</span>
       </p>
     </Frame>
   );
@@ -127,7 +127,7 @@ function SourcesBlock({ block }: { block: Extract<UiBlock, { type: "sources" }> 
   return (
     <Frame>
       <p className="text-muted-foreground mb-1 font-mono text-[10px] tracking-wider uppercase">
-        Sources
+        Sumber
       </p>
       <ul className="space-y-1 text-xs">
         {block.items.map((item) => (

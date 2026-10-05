@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard, useSession } from "@/lib/session";
+import { DRIVER_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import {
   toWatchlistItems,
   type WatchlistDashboardResponse,
@@ -96,7 +97,7 @@ function AppShell() {
   };
 
   const formatDate = (isoString: string | null) => {
-    if (!isoString) return "Never";
+    if (!isoString) return "Belum pernah";
     return new Date(isoString).toLocaleString("id-ID", {
       dateStyle: "medium",
       timeStyle: "short",
@@ -109,11 +110,11 @@ function AppShell() {
 
     const cleanTicker = inputTicker.trim().toUpperCase();
     if (!cleanTicker) {
-      setErrorMessage("Ticker symbol cannot be empty.");
+      setErrorMessage("Simbol ticker tidak boleh kosong.");
       return;
     }
     if (watchlist.some((item) => item.ticker === cleanTicker)) {
-      setErrorMessage(`Ticker ${cleanTicker} is already in your watchlist.`);
+      setErrorMessage(`Ticker ${cleanTicker} sudah ada di watchlist Anda.`);
       return;
     }
 
@@ -126,12 +127,14 @@ function AppShell() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Could not add ${cleanTicker} (HTTP ${res.status})`);
+        throw new Error(
+          body?.error ?? `Tidak dapat menambahkan ${cleanTicker} (HTTP ${res.status})`,
+        );
       }
       setInputTicker("");
       await reloadWatchlist();
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Could not add the ticker.");
+      setErrorMessage(err instanceof Error ? err.message : "Tidak dapat menambahkan ticker.");
     } finally {
       setIsSubmitting(false);
     }
@@ -145,11 +148,11 @@ function AppShell() {
         method: "DELETE",
       });
       if (!res.ok) {
-        throw new Error(`Could not remove ${ticker} (HTTP ${res.status})`);
+        throw new Error(`Tidak dapat menghapus ${ticker} (HTTP ${res.status})`);
       }
       setWatchlist((prev) => prev.filter((item) => item.ticker !== ticker));
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : `Could not remove ${ticker}.`);
+      setErrorMessage(err instanceof Error ? err.message : `Tidak dapat menghapus ${ticker}.`);
     } finally {
       setDeletingTicker(null);
     }
@@ -170,13 +173,16 @@ function AppShell() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Could not start investigation (HTTP ${res.status})`);
+        throw new Error(body?.error ?? `Tidak dapat memulai investigasi (HTTP ${res.status})`);
       }
+      // The question belongs to the run it just started; keeping it would seed
+      // the next ticker with a question written for this one.
+      setQuestion("");
       // The detail route is keyed by ticker so the address stays readable; the
       // API resolves either a ticker or an investigation id.
       await navigate({ to: "/investigations/$ticker", params: { ticker } });
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : "Could not start investigation.");
+      setErrorMessage(err instanceof Error ? err.message : "Tidak dapat memulai investigasi.");
     }
   };
 
@@ -186,17 +192,17 @@ function AppShell() {
       <header className="dashboard-header">
         <div>
           <p className="text-signal-text tabular text-[11px] tracking-[0.22em] uppercase font-mono">
-            Signed in
+            Sesi aktif
           </p>
-          <h1 className="dashboard-title">Welcome, {name}.</h1>
+          <h1 className="dashboard-title">Selamat datang, {name}.</h1>
           <p className="dashboard-subtitle">
-            Monitor market tickers, check the latest close, and run evidence-backed investigations
-            on demand.
+            Pantau ticker pasar, cek penutupan terakhir, dan jalankan investigasi berbasis bukti
+            kapan saja.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={handleSignOut}>
-            Sign out
+            Keluar
           </Button>
         </div>
       </header>
@@ -204,19 +210,19 @@ function AppShell() {
       {/* Form Add Ticker */}
       <section className="dashboard-panel">
         <div className="mb-4">
-          <h2 className="panel-title">Add Watchlist Ticker</h2>
-          <p className="panel-subtitle">Enter an IDX ticker symbol (e.g. BBCA, BBRI, ANTM)</p>
+          <h2 className="panel-title">Tambah Ticker ke Watchlist</h2>
+          <p className="panel-subtitle">Masukkan simbol ticker IDX (mis. BBCA, BBRI, ANTM)</p>
         </div>
 
         <form onSubmit={handleAddTicker} className="space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
             <div className="grid w-full sm:w-80 gap-1.5">
               <Label htmlFor="ticker-input" className="text-xs font-medium">
-                Ticker Symbol
+                Simbol Ticker
               </Label>
               <Input
                 id="ticker-input"
-                placeholder="e.g. BBRI"
+                placeholder="mis. BBRI"
                 value={inputTicker}
                 onChange={(e) => {
                   setInputTicker(e.target.value);
@@ -226,7 +232,7 @@ function AppShell() {
               />
             </div>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Validating..." : "Add to Watchlist"}
+              {isSubmitting ? "Memvalidasi..." : "Tambah ke Watchlist"}
             </Button>
           </div>
 
@@ -244,11 +250,11 @@ function AppShell() {
           </h2>
           <div className="grid w-full gap-1.5 sm:w-96">
             <Label htmlFor="question-input" className="text-xs font-medium">
-              Investigation question (optional)
+              Pertanyaan untuk investigasi berikutnya (opsional)
             </Label>
             <Input
               id="question-input"
-              placeholder="e.g. Why did ANTM move today?"
+              placeholder="mis. Kenapa ANTM bergerak hari ini?"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
             />
@@ -259,13 +265,13 @@ function AppShell() {
           <div className="watchlist-empty">
             <p className="flex items-center justify-center gap-2 font-medium text-foreground">
               <LoaderCircle className="size-4 animate-spin" aria-hidden />
-              Loading your watchlist…
+              Memuat watchlist Anda…
             </p>
           </div>
         ) : watchlist.length === 0 ? (
           <div className="watchlist-empty">
-            <p className="font-medium text-foreground">Your watchlist is currently empty.</p>
-            <p className="text-xs">Add a ticker using the form above to start monitoring.</p>
+            <p className="font-medium text-foreground">Watchlist Anda masih kosong.</p>
+            <p className="text-xs">Tambahkan ticker lewat form di atas untuk mulai memantau.</p>
           </div>
         ) : (
           <ul className="watchlist-list">
@@ -274,7 +280,7 @@ function AppShell() {
                 <Link
                   to="/investigations/$ticker"
                   params={{ ticker: item.ticker }}
-                  aria-label={`Open the ${item.ticker} conversation`}
+                  aria-label={`Buka investigasi ${item.ticker}`}
                   className="ticker-row-main"
                 >
                   <div className="min-w-0">
@@ -290,19 +296,19 @@ function AppShell() {
                       </dd>
                     </div>
                     <div>
-                      <dt>Attention</dt>
+                      <dt>Perhatian</dt>
                       <dd>{item.statusLabel ? STATUS_LABEL_TEXT[item.statusLabel] : "—"}</dd>
                     </div>
                     <div>
                       <dt>Driver</dt>
-                      <dd>{item.driver ? item.driver.replace(/_/g, " ") : "—"}</dd>
+                      <dd>{item.driver ? DRIVER_TEXT[item.driver] : "—"}</dd>
                     </div>
                     <div>
-                      <dt>Runs</dt>
-                      <dd>{item.runCount === 0 ? "None yet" : item.runCount}</dd>
+                      <dt>Jumlah run</dt>
+                      <dd>{item.runCount === 0 ? "Belum ada" : item.runCount}</dd>
                     </div>
                     <div>
-                      <dt>Last run</dt>
+                      <dt>Investigasi terakhir</dt>
                       <dd>{formatDate(item.lastInvestigatedAt)}</dd>
                     </div>
                   </dl>
@@ -333,8 +339,8 @@ function AppShell() {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Remove ${item.ticker} from watchlist`}
-                    title={`Remove ${item.ticker}`}
+                    aria-label={`Hapus ${item.ticker} dari watchlist`}
+                    title={`Hapus ${item.ticker}`}
                     disabled={deletingTicker === item.ticker}
                     onClick={() => handleRemoveTicker(item.ticker)}
                     className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
@@ -356,17 +362,18 @@ function AppShell() {
 }
 
 const PRIMARY_ACTION_LABEL: Record<WatchlistItem["primaryAction"], string> = {
-  INVESTIGATE: "Investigate",
-  OPEN_REPORT: "Open report",
-  UPDATE: "Update",
+  INVESTIGATE: "Investigasi",
+  OPEN_REPORT: "Buka laporan",
+  UPDATE: "Perbarui",
 };
 
-const STATUS_LABEL_TEXT: Record<NonNullable<WatchlistItem["statusLabel"]>, string> = {
-  NORMAL: "Normal",
-  ATTENTION: "Needs attention",
-  UNCLEAR: "Unclear",
+const RUN_STATUS_TEXT: Record<WatchlistItem["investigationStatus"], string> = {
+  PENDING: "Menunggu",
+  IN_PROGRESS: "Sedang berjalan",
+  COMPLETED: "Selesai",
+  FAILED: "Gagal",
+  NONE: "Belum dimulai",
 };
-
 function StatusBadge({ status }: { status: WatchlistItem["investigationStatus"] }) {
   const styles: Record<WatchlistItem["investigationStatus"], string> = {
     COMPLETED: "status-completed",
@@ -376,9 +383,5 @@ function StatusBadge({ status }: { status: WatchlistItem["investigationStatus"] 
     NONE: "status-none",
   };
 
-  return (
-    <span className={`status-badge ${styles[status]}`}>
-      {status === "NONE" ? "NOT STARTED" : status.replace("_", " ")}
-    </span>
-  );
+  return <span className={`status-badge ${styles[status]}`}>{RUN_STATUS_TEXT[status]}</span>;
 }

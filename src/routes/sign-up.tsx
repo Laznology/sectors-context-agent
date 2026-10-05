@@ -41,7 +41,7 @@ function SignUpForm() {
 
     setIsSubmitting(false);
     if (result.error) {
-      setError(result.error.message ?? "Authentication failed");
+      setError(result.error.message ?? "Autentikasi gagal.");
       return;
     }
     await navigate({ to: "/" });
@@ -50,27 +50,27 @@ function SignUpForm() {
   return (
     <div className="auth-grid">
       <SignalReadout
-        eyebrow="Create account"
+        eyebrow="Buat Akun"
         title={
           <>
-            Your own
+            Kantor sinyal
             <br />
-            signal desk.
+            milik Anda sendiri.
           </>
         }
-        description="Keep a watchlist, run investigations on demand, and follow how a story develops between sessions — evidence stays attached to every conclusion."
+        description="Simpan watchlist, jalankan investigasi kapan saja, dan ikuti perkembangan cerita antar sesi — bukti tetap menempel pada setiap kesimpulan."
       />
 
       <section className="auth-card">
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-field">
             <Label htmlFor="name" className="auth-label">
-              Name
+              Nama
             </Label>
             <Input
               id="name"
               autoComplete="name"
-              placeholder="Your full name"
+              placeholder="Nama lengkap Anda"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
@@ -94,7 +94,7 @@ function SignUpForm() {
 
           <div className="auth-field">
             <Label htmlFor="password" className="auth-label">
-              Password
+              Kata Sandi
             </Label>
             <Input
               id="password"
@@ -106,7 +106,7 @@ function SignUpForm() {
               onChange={(event) => setPassword(event.target.value)}
               required
             />
-            <p className="text-muted-foreground text-[11px]">At least 8 characters.</p>
+            <p className="text-muted-foreground text-[11px]">Minimal 8 karakter.</p>
           </div>
 
           {error && (
@@ -116,14 +116,14 @@ function SignUpForm() {
           )}
 
           <Button type="submit" disabled={isSubmitting} className="w-full font-medium mt-2">
-            {isSubmitting ? "Working…" : "Create account"}
+            {isSubmitting ? "Memproses…" : "Buat Akun"}
           </Button>
         </form>
 
         <p className="auth-footer-text">
-          Already registered?{" "}
+          Sudah punya akun?{" "}
           <Link to="/sign-in" className="auth-link">
-            Sign in
+            Masuk
           </Link>
         </p>
       </section>

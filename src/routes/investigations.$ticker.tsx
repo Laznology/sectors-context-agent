@@ -2,15 +2,8 @@ import { ChatPanel } from "@/components/chat-panel";
 import { InvestigationReport } from "@/components/investigation-report";
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
+  resolvePageStage,
   toInvestigationData,
-  toOpeningMessage,
   toolLabel,
   type InvestigationData,
   type InvestigationDetailResponse,
@@ -19,17 +12,10 @@ import {
 import { SessionGuard } from "@/lib/session";
 import { useInvestigationSSE, type PipelineStatus } from "@/lib/use-investigation-sse";
 import { rootRoute } from "@/routes/__root";
+import { PIPELINE_STEP_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import { createRoute, useNavigate, useParams } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  Check,
-  FileText,
-  LoaderCircle,
-  RefreshCw,
-  TriangleAlert,
-  Wrench,
-} from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, Check, LoaderCircle, RefreshCw, TriangleAlert, Wrench } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 export const investigationDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -37,14 +23,15 @@ export const investigationDetailRoute = createRoute({
   component: InvestigationDetailPage,
 });
 
-const PIPELINE_STEPS: { status: PipelineStatus; label: string }[] = [
-  { status: "pending", label: "Pending" },
-  { status: "collecting_baseline", label: "Collecting Baseline" },
-  { status: "calculating_signals", label: "Calculating Signals" },
-  { status: "planning", label: "Planning Execution" },
-  { status: "investigating", label: "Deep Investigating" },
-  { status: "synthesizing", label: "Synthesizing Findings" },
-  { status: "completed", label: "Completed" },
+/** Ordered stages of the run; the labels live in the shared schema so no surface re-invents them. */
+const PIPELINE_STEPS: PipelineStatus[] = [
+  "pending",
+  "collecting_baseline",
+  "calculating_signals",
+  "planning",
+  "investigating",
+  "synthesizing",
+  "completed",
 ];
 
 function InvestigationDetailPage() {
@@ -66,14 +53,16 @@ function InvestigationContent() {
   const [isFetchingSummary, setIsFetchingSummary] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const loadingRef = useRef<HTMLDivElement | null>(null);
 
-  const currentStatusIdx = PIPELINE_STEPS.findIndex((s) => s.status === eventData.status);
-  const isFailed = eventData.status === "failed";
+  const currentStatusIdx = PIPELINE_STEPS.indexOf(eventData.status);
   const isTerminal = eventData.status === "completed" || eventData.status === "failed";
 
   const reload = () => {
+    // Reloading unmounts the retry button that was just pressed; move focus to
+    // the stage it belongs to instead of letting it fall back to the document.
+    loadingRef.current?.focus();
     setIsFetchingSummary(true);
     setFetchError(null);
     setReloadToken((token) => token + 1);
@@ -88,14 +77,14 @@ function InvestigationContent() {
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Could not start the run (HTTP ${res.status})`);
+        throw new Error(body?.error ?? `Investigasi gagal dimulai (HTTP ${res.status})`);
       }
       setSummaryData(null);
       setNotFound(false);
       setFetchError(null);
       reload();
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : "Could not start the run.");
+      setFetchError(err instanceof Error ? err.message : "Investigasi gagal dimulai.");
     }
   };
 
@@ -109,7 +98,7 @@ function InvestigationContent() {
           return null;
         }
         if (!res.ok) {
-          throw new Error(`Could not load data from the API (HTTP ${res.status})`);
+          throw new Error(`Gagal memuat data dari API (HTTP ${res.status})`);
         }
         return toInvestigationData((await res.json()) as InvestigationDetailResponse);
       })
@@ -119,10 +108,8 @@ function InvestigationContent() {
       .catch((err: unknown) => {
         if (ignore) return;
         const message =
-          err instanceof Error
-            ? err.message
-            : "The investigation report is not ready from the API.";
-        console.error("Error fetching investigation summary:", err);
+          err instanceof Error ? err.message : "Laporan investigasi belum tersedia dari API.";
+        console.error("Gagal memuat ringkasan investigasi:", err);
         setFetchError(message);
       })
       .finally(() => {
@@ -134,9 +121,12 @@ function InvestigationContent() {
     };
   }, [ticker, isTerminal, reloadToken]);
 
-  const hasReport = Boolean(
-    summaryData && (summaryData.status === "COMPLETED" || summaryData.status === "FAILED"),
-  );
+  const stage = resolvePageStage({
+    status: summaryData?.status ?? null,
+    isFetching: isFetchingSummary,
+    error: fetchError,
+    notFound,
+  });
 
   return (
     <div className="dashboard-wrapper space-y-8 pb-16">
@@ -151,222 +141,180 @@ function InvestigationContent() {
             className="text-muted-foreground -ml-2 w-fit text-xs"
           >
             <ArrowLeft aria-hidden />
-            Back to dashboard
+            Kembali ke dasbor
           </Button>
           <h1 className="dashboard-title">
             Ticker:{" "}
             <span className="text-signal-text uppercase">{summaryData?.ticker || ticker}</span>
           </h1>
           {summaryData?.companyName && (
-            <p className="text-muted-foreground text-sm">{summaryData.companyName}</p>
+            <p className="text-foreground/80 text-sm">{summaryData.companyName}</p>
           )}
         </div>
         {summaryData && <StatusLabelBadge label={summaryData.statusLabel} />}
       </div>
 
-      {!hasReport && !notFound && (
-        <section className="dashboard-panel space-y-6">
-          <div>
-            <h2 className="panel-title">Investigation Progress</h2>
-            <p className="panel-subtitle">
-              Live progress of the agent pipeline for ticker{" "}
-              <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
-            {PIPELINE_STEPS.map((step, idx) => {
-              const isCurrent =
-                eventData.status === step.status && eventData.status !== "completed";
-              const isDone = currentStatusIdx > idx || eventData.status === "completed";
-
-              return (
-                <div
-                  key={step.status}
-                  className={`flex items-center gap-3 rounded-lg border p-3 text-xs transition-all ${
-                    isCurrent
-                      ? "border-signal/60 bg-signal/15 text-foreground font-bold"
-                      : isDone
-                        ? "border-signal/30 bg-signal/8 text-ink/85"
-                        : "border-border/40 text-muted-foreground opacity-60"
-                  }`}
-                >
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] ${
-                      isCurrent
-                        ? "bg-signal text-signal-ink animate-bounce"
-                        : isDone
-                          ? "bg-signal/70 font-bold text-ink"
-                          : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {isDone ? <Check className="size-3" aria-hidden /> : idx + 1}
-                  </span>
-                  <span className="line-clamp-1">{step.label}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          {eventData.currentTool && !isTerminal && (
-            <div className="border-rule bg-ink/4 space-y-2 rounded-lg border p-4">
-              <span className="text-signal-text flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider uppercase">
-                <Wrench className="size-3.5" aria-hidden />
-                Active tool
-              </span>
-              <p className="text-foreground text-sm font-bold">
-                {toolLabel(eventData.currentTool.toolName)}
-              </p>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                <strong className="text-foreground">Reason: </strong>
-                {eventData.currentTool.reason}
-              </p>
-            </div>
-          )}
-
-          {isFailed && (
-            <div className="border-destructive/50 bg-destructive/10 space-y-1 rounded-lg border p-4">
-              <h4 className="text-destructive flex items-center gap-1.5 text-sm font-bold">
-                <TriangleAlert className="size-4" aria-hidden />
-                Pipeline Execution Failed
-              </h4>
-              <p className="text-destructive/90 font-mono text-xs">
-                {eventData.error || "The agent run failed."}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-
-      {!summaryData && !notFound && (isFetchingSummary || fetchError) && (
-        <div className="dashboard-panel space-y-3 py-8 text-center">
-          {isFetchingSummary ? (
-            <p className="text-signal-text flex items-center justify-center gap-2 font-mono text-sm">
-              <LoaderCircle className="size-4 animate-spin" aria-hidden />
-              Loading the investigation report…
-            </p>
-          ) : fetchError ? (
-            <div className="space-y-3">
-              <p className="text-destructive font-mono text-xs">{fetchError}</p>
-              <Button size="sm" variant="outline" onClick={reload}>
-                <RefreshCw aria-hidden />
-                Retry loading report
-              </Button>
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {notFound && (
-        <div className="dashboard-panel space-y-4 py-10 text-center">
-          <p className="text-foreground font-medium">
-            No investigation exists for <span className="text-signal-text uppercase">{ticker}</span>{" "}
-            yet.
-          </p>
-          <p className="text-muted-foreground mx-auto max-w-md text-sm leading-relaxed">
-            Start the first run and the agent will collect market, sector, flow, broker, and news
-            evidence, then explain what moved.
-          </p>
-          <Button
-            type="button"
-            onClick={() => void handleReinvestigate(ticker)}
-            className="mx-auto w-fit"
+      {/* Persistent wrapper: React swaps the child inside it, so a live run resolves
+          into the report in place instead of remounting the whole subtree. */}
+      <div className="animate-in fade-in flex min-h-0 flex-col gap-4 duration-500">
+        {stage === "loading" && (
+          <div
+            ref={loadingRef}
+            tabIndex={-1}
+            className="dashboard-panel space-y-3 py-8 text-center"
           >
-            Investigate {ticker}
-          </Button>
-        </div>
-      )}
-
-      {summaryData && !hasReport && (
-        <div className="dashboard-panel space-y-2 py-10 text-center">
-          <p className="text-signal-text flex items-center justify-center gap-2 font-mono text-sm">
-            <LoaderCircle className="size-4 animate-spin" aria-hidden />
-            The agent is collecting evidence
-          </p>
-          <p className="text-muted-foreground text-sm">
-            The report appears here once the investigation completes.
-          </p>
-        </div>
-      )}
-
-      {summaryData && hasReport && (
-        <div className="animate-in fade-in flex min-h-0 flex-col gap-4 duration-500">
-          <div className="dashboard-panel flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="panel-title">Conversation</h2>
-              <p className="panel-subtitle">
-                Ask about this ticker's movement. Answers stay grounded in the collected evidence.
+            {isFetchingSummary ? (
+              <p
+                role="status"
+                className="text-signal-text flex items-center justify-center gap-2 font-mono text-sm"
+              >
+                <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                Memuat laporan investigasi…
               </p>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setReportOpen(true)}>
-              <FileText aria-hidden />
-              Open report
+            ) : (
+              <div className="space-y-3">
+                <p role="alert" className="text-destructive font-mono text-xs">
+                  {fetchError}
+                </p>
+                <Button size="sm" variant="outline" onClick={reload}>
+                  <RefreshCw aria-hidden />
+                  Coba muat ulang
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {stage === "empty" && (
+          <div className="dashboard-panel space-y-4 py-10 text-center">
+            <p className="text-foreground font-medium">
+              Belum ada investigasi untuk{" "}
+              <span className="text-signal-text uppercase">{ticker}</span>.
+            </p>
+            <p className="text-muted-foreground mx-auto max-w-md text-sm leading-relaxed">
+              Jalankan investigasi pertama, lalu agent akan mengumpulkan bukti pasar, sektor, aliran
+              dana asing, broker, dan berita, lalu menjelaskan apa yang bergerak.
+            </p>
+            <Button
+              type="button"
+              onClick={() => void handleReinvestigate(ticker)}
+              className="mx-auto w-fit"
+            >
+              Investigasi {ticker}
             </Button>
           </div>
+        )}
 
-          {summaryData.status === "FAILED" ? (
-            <div className="dashboard-panel space-y-4">
-              <p className="text-destructive text-sm leading-relaxed">
-                This investigation did not complete, so there is no result to discuss yet.
+        {stage === "progress" && (
+          <section className="dashboard-panel space-y-6">
+            <div>
+              <h2 className="panel-title">Progres Investigasi</h2>
+              <p className="panel-subtitle">
+                Progres langsung pipeline agent untuk ticker{" "}
+                <strong className="uppercase">{summaryData?.ticker || ticker}</strong>.
               </p>
-              <Button
-                type="button"
-                onClick={() => void handleReinvestigate(summaryData.ticker || ticker)}
-                className="w-fit"
-              >
-                <RefreshCw aria-hidden />
-                Run it again
-              </Button>
             </div>
-          ) : (
-            <ChatPanel
-              key={`${summaryData.id}-${summaryData.status}`}
-              variant="thread"
-              investigationId={summaryData.id}
-              ticker={summaryData.ticker || ticker}
-              openingMessage={toOpeningMessage(summaryData)}
-              initialMessages={summaryData.conversation}
-              isEnabled
-            />
-          )}
 
-          <Sheet open={reportOpen} onOpenChange={setReportOpen}>
-            <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-3xl">
-              <SheetHeader>
-                <SheetTitle>{summaryData.ticker} report</SheetTitle>
-                <SheetDescription>
-                  Evidence, investigation path, Timeline, confidence, and what to monitor.
-                </SheetDescription>
-              </SheetHeader>
-              <div className="px-4 pb-8">
-                <InvestigationReport
-                  data={summaryData}
-                  onReinvestigate={() => void handleReinvestigate(summaryData.ticker || ticker)}
-                />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+              {PIPELINE_STEPS.map((status, idx) => {
+                const isCurrent = eventData.status === status && status !== "completed";
+                const isDone = currentStatusIdx > idx || eventData.status === "completed";
+
+                return (
+                  <div
+                    key={status}
+                    className={`flex items-center gap-3 rounded-lg border p-3 text-xs transition-all ${
+                      isCurrent
+                        ? "border-signal/60 bg-signal/15 text-foreground font-bold"
+                        : isDone
+                          ? "border-signal/30 bg-signal/8 text-ink/85"
+                          : "border-border/40 text-muted-foreground opacity-60"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] ${
+                        isCurrent
+                          ? "bg-signal text-signal-ink animate-bounce"
+                          : isDone
+                            ? "bg-signal/70 font-bold text-ink"
+                            : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {isDone ? <Check className="size-3" aria-hidden /> : idx + 1}
+                    </span>
+                    <span className="line-clamp-1">{PIPELINE_STEP_TEXT[status]}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {eventData.currentTool && !isTerminal && (
+              <div className="border-rule bg-ink/4 space-y-2 rounded-lg border p-4">
+                <span className="text-signal-text flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wider uppercase">
+                  <Wrench className="size-3.5" aria-hidden />
+                  Alat aktif
+                </span>
+                <p className="text-foreground text-sm font-bold">
+                  {toolLabel(eventData.currentTool.toolName)}
+                </p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  <strong className="text-foreground">Alasan: </strong>
+                  {eventData.currentTool.reason}
+                </p>
               </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      )}
+            )}
+
+            {eventData.status === "failed" && (
+              <div className="border-destructive/50 bg-destructive/10 space-y-1 rounded-lg border p-4">
+                <h4 className="text-destructive flex items-center gap-1.5 text-sm font-bold">
+                  <TriangleAlert className="size-4" aria-hidden />
+                  Eksekusi pipeline gagal
+                </h4>
+                <p className="text-destructive/90 font-mono text-xs">
+                  {eventData.error || "Proses agent gagal."}
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {stage === "report" && summaryData && (
+          <>
+            <InvestigationReport
+              data={summaryData}
+              onReinvestigate={() => void handleReinvestigate(summaryData.ticker || ticker)}
+            />
+
+            {summaryData.status === "COMPLETED" && (
+              <ChatPanel
+                key={`${summaryData.id}-${summaryData.status}`}
+                investigationId={summaryData.id}
+                ticker={summaryData.ticker || ticker}
+                initialMessages={summaryData.conversation}
+              />
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-const STATUS_LABEL_STYLE: Record<StatusLabel, { className: string; text: string }> = {
-  NORMAL: { className: "badge-ink", text: "Normal" },
-  ATTENTION: { className: "badge-signal", text: "Needs Attention" },
-  UNCLEAR: { className: "badge-muted", text: "Unclear" },
+const STATUS_BADGE_CLASS: Record<StatusLabel, string> = {
+  NORMAL: "badge-ink",
+  ATTENTION: "badge-signal",
+  UNCLEAR: "badge-muted",
 };
 
 function StatusLabelBadge({ label }: { label: StatusLabel | null }) {
   if (!label) return null;
-  const style = STATUS_LABEL_STYLE[label];
+  const text = STATUS_LABEL_TEXT[label.toLowerCase() as keyof typeof STATUS_LABEL_TEXT];
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 font-mono text-[11px] font-semibold tracking-wider uppercase ${style.className}`}
+      className={`badge ${STATUS_BADGE_CLASS[label]} shrink-0 font-mono tracking-wider uppercase`}
     >
-      {style.text}
+      {text}
     </span>
   );
 }

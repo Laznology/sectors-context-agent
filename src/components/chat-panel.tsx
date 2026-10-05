@@ -37,25 +37,14 @@ export function ChatPanel({
   investigationId,
   ticker,
   initialMessages,
-  openingMessage,
-  isEnabled,
-  variant = "panel",
 }: {
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
-  /** The investigation result, shown as the thread's first assistant turn. */
-  openingMessage?: ConversationMessage | null;
-  /** Follow-ups are only accepted once the investigation has completed. */
-  isEnabled: boolean;
-  /** `panel` sits in a page section; `thread` fills a full-height column. */
-  variant?: "panel" | "thread";
 }) {
   const inputId = useId();
   const titleId = useId();
-  const [messages, setMessages] = useState<ConversationMessage[]>(
-    openingMessage ? [openingMessage, ...initialMessages] : initialMessages,
-  );
+  const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +62,7 @@ export function ChatPanel({
 
   async function sendMessage() {
     const message = draft.trim();
-    if (!message || isSending || !isEnabled) return;
+    if (!message || isSending) return;
 
     setError(null);
     setIsSending(true);
@@ -107,19 +96,19 @@ export function ChatPanel({
         const detail = parsedError.success
           ? (parsedError.data.message ?? parsedError.data.error)
           : undefined;
-        throw new Error(detail ?? `Follow-up failed (HTTP ${res.status})`);
+        throw new Error(detail ?? `Pertanyaan lanjutan gagal (HTTP ${res.status})`);
       }
 
       const parsed = ChatResponseSchema.safeParse(body);
       if (!parsed.success) {
-        throw new Error("The server returned an unexpected follow-up response.");
+        throw new Error("Server mengembalikan respons pertanyaan lanjutan yang tidak sesuai.");
       }
 
       const answer = parsed.data.message;
       setMessages((prev) => [...prev, answer]);
     } catch (err) {
       if (controller.signal.aborted) return;
-      setError(err instanceof Error ? err.message : "The follow-up could not be processed.");
+      setError(err instanceof Error ? err.message : "Pertanyaan lanjutan tidak dapat diproses.");
     } finally {
       if (!controller.signal.aborted) setIsSending(false);
     }
@@ -138,35 +127,27 @@ export function ChatPanel({
   }
 
   return (
-    <section
-      className={
-        variant === "thread" ? "flex min-h-0 flex-1 flex-col gap-4" : "dashboard-panel space-y-4"
-      }
-      aria-labelledby={titleId}
-    >
+    <section className="dashboard-panel space-y-4" aria-labelledby={titleId}>
       <div>
         <h2 id={titleId} className="panel-title flex items-center gap-2">
           <MessageSquare className="size-4" aria-hidden />
-          Follow-up Question
+          Pertanyaan Lanjutan
         </h2>
         <p className="panel-subtitle">
-          Ask a follow-up about this <strong className="uppercase">{ticker}</strong> investigation.
-          Answers stay grounded in the collected evidence and are not investment advice.
+          Ajukan pertanyaan lanjutan tentang investigasi{" "}
+          <strong className="uppercase">{ticker}</strong> ini. Jawaban tetap bertumpu pada bukti
+          yang dikumpulkan dan bukan nasihat investasi.
         </p>
       </div>
 
       <div
         ref={listRef}
-        className={
-          variant === "thread"
-            ? "min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
-            : "max-h-[28rem] space-y-3 overflow-y-auto pr-1"
-        }
+        className="max-h-[28rem] space-y-3 overflow-y-auto pr-1"
         aria-live="polite"
       >
         {messages.length === 0 && !isSending && (
           <p className="text-xs text-muted-foreground">
-            No questions yet. Example: "Apakah foreign flow ini berlanjut?"
+            Belum ada pertanyaan. Contoh: "Apakah arus dana asing ini berlanjut?"
           </p>
         )}
 
@@ -178,10 +159,10 @@ export function ChatPanel({
           <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
             <LoaderCircle className="size-3.5 shrink-0 animate-spin text-primary" aria-hidden />
             <span className="flex flex-col gap-1">
-              <span className="text-foreground">The agent is drafting an answer…</span>
+              <span className="text-foreground">Agent sedang menyusun jawaban…</span>
               <span className="flex items-center gap-1.5 font-mono text-[11px]">
                 <Wrench className="size-3" aria-hidden />
-                It may call Sectors tools for fresh data.
+                Agent mungkin mengambil data terbaru dari Sectors.
               </span>
             </span>
           </div>
@@ -201,38 +182,32 @@ export function ChatPanel({
         </p>
       )}
 
-      {isEnabled ? (
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <Label htmlFor={inputId} className="text-xs font-medium">
-            Question
-          </Label>
-          <textarea
-            id={inputId}
-            rows={2}
-            maxLength={MAX_MESSAGE_LENGTH}
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isSending}
-            placeholder={`Ask about ${ticker}… (Enter to send, Shift+Enter for a new line)`}
-            className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-          />
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={isSending || draft.trim().length === 0}>
-              {isSending ? (
-                <LoaderCircle className="animate-spin" aria-hidden />
-              ) : (
-                <Send aria-hidden />
-              )}
-              {isSending ? "Sending…" : "Send"}
-            </Button>
-          </div>
-        </form>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Follow-ups unlock once the investigation completes.
-        </p>
-      )}
+      <form onSubmit={handleSubmit} className="space-y-2">
+        <Label htmlFor={inputId} className="text-xs font-medium">
+          Pertanyaan
+        </Label>
+        <textarea
+          id={inputId}
+          rows={2}
+          maxLength={MAX_MESSAGE_LENGTH}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={isSending}
+          placeholder={`Tanya tentang ${ticker}… (Enter untuk kirim, Shift+Enter untuk baris baru)`}
+          className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+        />
+        <div className="flex justify-end">
+          <Button type="submit" size="sm" disabled={isSending || draft.trim().length === 0}>
+            {isSending ? (
+              <LoaderCircle className="animate-spin" aria-hidden />
+            ) : (
+              <Send aria-hidden />
+            )}
+            {isSending ? "Mengirim…" : "Kirim"}
+          </Button>
+        </div>
+      </form>
     </section>
   );
 }
@@ -251,7 +226,7 @@ function ChatBubble({ message }: { message: ConversationMessage }) {
         }`}
       >
         <p className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-          {isUser ? "You" : "Agent"}
+          {isUser ? "Anda" : "Agent"}
         </p>
         {parts.map((part, index) =>
           part.kind === "text" ? (
