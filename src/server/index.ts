@@ -83,6 +83,24 @@ app.use("/assets/*", async (context, next) => {
 });
 app.use("/assets/*", serveStatic({ root: "./dist" }));
 
+// Root-level static files (favicons, web app manifest) live at dist/ root, not
+// under /assets. Without this they fall through to the SPA shell, so the browser
+// receives index.html for /favicon.ico and shows no icon.
+const STATIC_ROOT_FILES = [
+  "/favicon.ico",
+  "/favicon.svg",
+  "/favicon-16x16.png",
+  "/favicon-32x32.png",
+  "/apple-touch-icon.png",
+  "/android-chrome-192x192.png",
+  "/android-chrome-512x512.png",
+  "/icons.svg",
+  "/site.webmanifest",
+] as const;
+for (const file of STATIC_ROOT_FILES) {
+  app.get(file, serveStatic({ root: "./dist" }));
+}
+
 const port = Number(process.env.PORT ?? 3001);
 
 const server = serve({ fetch: app.fetch, port }, (info) => {

@@ -1,0 +1,11 @@
+# Production override: Postgres is NOT published to the host.
+# Only the app port is reachable from outside.
+services:
+  postgres:
+    ports: !override []
+    restart: unless-stopped
+
+  app:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
