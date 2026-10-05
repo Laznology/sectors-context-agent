@@ -1,5 +1,5 @@
 import { ChatPanel } from "@/components/chat-panel";
-import { InvestigationReport } from "@/components/investigation-report";
+import { InvestigationReport, InvestigationVerdict } from "@/components/investigation-report";
 import { Button } from "@/components/ui/button";
 import {
   resolvePageStage,
@@ -156,7 +156,7 @@ function InvestigationContent() {
 
       {/* Persistent wrapper: React swaps the child inside it, so a live run resolves
           into the report in place instead of remounting the whole subtree. */}
-      <div className="animate-in fade-in flex min-h-0 flex-col gap-4 duration-500">
+      <div className="animate-in fade-in flex min-h-0 flex-col gap-8 duration-500">
         {stage === "loading" && (
           <div
             ref={loadingRef}
@@ -280,10 +280,7 @@ function InvestigationContent() {
 
         {stage === "report" && summaryData && (
           <>
-            <InvestigationReport
-              data={summaryData}
-              onReinvestigate={() => void handleReinvestigate(summaryData.ticker || ticker)}
-            />
+            <InvestigationVerdict data={summaryData} />
 
             {summaryData.status === "COMPLETED" && (
               <ChatPanel
@@ -293,6 +290,11 @@ function InvestigationContent() {
                 initialMessages={summaryData.conversation}
               />
             )}
+
+            <InvestigationReport
+              data={summaryData}
+              onReinvestigate={() => void handleReinvestigate(summaryData.ticker || ticker)}
+            />
           </>
         )}
       </div>
