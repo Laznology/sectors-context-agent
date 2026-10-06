@@ -38,12 +38,14 @@ export function ChatPanel({
   ticker,
   initialMessages,
   isOpen,
+  isClosing,
   onClose,
 }: {
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
   isOpen: boolean;
+  isClosing: boolean;
   onClose: () => void;
 }) {
   const inputId = useId();
@@ -51,8 +53,10 @@ export function ChatPanel({
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const latestAnswerRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const titleId = useId();
   const previousMessages = messages.slice(0, -2);
@@ -63,8 +67,15 @@ export function ChatPanel({
   // Keep new turns in the thread, never scroll the report itself.
   useEffect(() => {
     const list = listRef.current;
-    if (list && isOpen) list.scrollTop = list.scrollHeight;
+    if (!list || !isOpen) return;
+    list.scrollTop = list.scrollHeight;
   }, [messages.length, isSending, isOpen]);
+
+  // Align the new answer's top so its reveal starts in view, not at the bottom.
+  useEffect(() => {
+    if (!revealMessageId) return;
+    latestAnswerRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [revealMessageId]);
 
   async function sendMessage() {
     const message = draft.trim();
@@ -111,6 +122,7 @@ export function ChatPanel({
       }
 
       const answer = parsed.data.message;
+      setRevealMessageId(answer.id);
       setMessages((prev) => [...prev, answer]);
     } catch (err) {
       if (controller.signal.aborted) return;
@@ -143,13 +155,15 @@ export function ChatPanel({
     window.requestAnimationFrame(() => textareaRef.current?.focus());
   }
 
-  if (!isOpen) return null;
-
   return (
     <aside
       id="investigation-chat-panel"
       aria-labelledby={titleId}
-      className="relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-6 xl:bottom-6 xl:h-auto xl:w-[36rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0"
+      className={`investigation-chat-panel relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-10 xl:bottom-6 xl:h-auto xl:w-[36rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0 ${
+        isOpen ? `is-open${isClosing ? " is-closing" : ""}` : "is-closed"
+      }`}
+      aria-hidden={!isOpen}
+      inert={!isOpen}
     >
       <div className="flex min-h-0 flex-1 flex-col">
         <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/60 px-5 py-4">
@@ -174,7 +188,7 @@ export function ChatPanel({
 
         <div
           ref={listRef}
-          className="scrollbar-theme min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4"
+          className="scrollbar-theme min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4"
           aria-live="polite"
         >
           {messages.length === 0 && !isSending && (
@@ -212,15 +226,20 @@ export function ChatPanel({
               </summary>
               <div className="mt-3 space-y-3">
                 {previousMessages.map((item) => (
-                  <ChatBubble key={item.id} message={item} />
+                  <ChatBubble key={item.id} message={item} animate={item.id === revealMessageId} />
                 ))}
               </div>
             </details>
           )}
 
-          {recentMessages.map((item) => (
-            <ChatBubble key={item.id} message={item} />
-          ))}
+          {recentMessages.map((item) => {
+            const isRevealing = item.id === revealMessageId;
+            return (
+              <div key={item.id} ref={isRevealing ? latestAnswerRef : undefined}>
+                <ChatBubble message={item} animate={isRevealing} />
+              </div>
+            );
+          })}
 
           {isSending && (
             <div className="flex items-start gap-2 border-y border-border/50 py-3 text-sm text-muted-foreground">
@@ -303,9 +322,48 @@ export function ChatPanel({
   );
 }
 
-function ChatBubble({ message }: { message: ConversationMessage }) {
+const SENTENCE_CHUNK = /[^.!?\n]+(?:[.!?]+|\n|$)/g;
+const REVEAL_STEP_MS = 130;
+
+function splitSentences(text: string): string[] {
+  const chunks = text.match(SENTENCE_CHUNK);
+  return chunks && chunks.length > 0 ? chunks : [text];
+}
+
+function RevealText({ text, onDone }: { text: string; onDone?: () => void }) {
+  const [sentences] = useState(() => splitSentences(text));
+  const [shown, setShown] = useState(0);
+  const done = shown >= sentences.length;
+  const announcedRef = useRef(false);
+
+  useEffect(() => {
+    if (done) {
+      if (!announcedRef.current) {
+        announcedRef.current = true;
+        onDone?.();
+      }
+      return;
+    }
+    const timer = window.setTimeout(() => setShown((count) => count + 1), REVEAL_STEP_MS);
+    return () => window.clearTimeout(timer);
+  }, [shown, sentences.length, done, onDone]);
+
+  return (
+    <p className="whitespace-pre-wrap">
+      {sentences.map((sentence, index) => (
+        <span key={index} className={`chat-sentence${index < shown ? " is-shown" : ""}`}>
+          {sentence}
+        </span>
+      ))}
+    </p>
+  );
+}
+
+function ChatBubble({ message, animate }: { message: ConversationMessage; animate: boolean }) {
   const isUser = message.role === "user";
   const parts = toMessageParts(message);
+  const hasProse = parts.some((part) => part.kind === "text");
+  const [blocksReady, setBlocksReady] = useState(!animate || !hasProse);
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -321,12 +379,18 @@ function ChatBubble({ message }: { message: ConversationMessage }) {
         </p>
         {parts.map((part, index) =>
           part.kind === "text" ? (
-            <p key={index} className="whitespace-pre-wrap">
-              {part.text}
-            </p>
-          ) : (
-            <UiBlockView key={index} block={part.block} />
-          ),
+            animate ? (
+              <RevealText key={index} text={part.text} onDone={() => setBlocksReady(true)} />
+            ) : (
+              <p key={index} className="whitespace-pre-wrap">
+                {part.text}
+              </p>
+            )
+          ) : blocksReady ? (
+            <div key={index} className="chat-block">
+              <UiBlockView block={part.block} />
+            </div>
+          ) : null,
         )}
       </div>
     </div>
