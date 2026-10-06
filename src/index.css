@@ -234,11 +234,11 @@
 
   /* Watchlist list */
   .watchlist-list {
-    @apply divide-border/40 border-border/60 bg-card/60 divide-y overflow-hidden rounded-xl border;
+    @apply flex list-none flex-col gap-3;
   }
 
   .ticker-row {
-    @apply hover:bg-muted/25 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors;
+    @apply hover:bg-muted/25 border-border/60 bg-card/60 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-xl border px-4 py-3 shadow-sm transition-colors;
   }
 
   .ticker-row-main {
@@ -537,9 +537,9 @@
   }
 }
 
-/* Touch devices using the browser's "Desktop site" still need the compact
-   watchlist layout. The coarse pointer media feature catches that mode when
-   the reported viewport is wider than the physical screen. */
+/* Touch devices, including browser "Desktop site" mode (viewport wider than the
+   physical screen). `display: contents` on the link promotes price/metadata/
+   actions to grid items of the row, so they can be placed directly. */
 @media (pointer: coarse) and (width < 80rem) {
   .watchlist-summary-grid {
     grid-template-columns: 1fr;
@@ -547,106 +547,70 @@
 
   .ticker-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 8rem auto;
+    grid-template-columns: minmax(5.5rem, 1fr) minmax(0, auto) auto;
+    align-items: start;
     column-gap: 0.75rem;
-    row-gap: 0.5rem;
+    row-gap: 0.75rem;
   }
 
   .ticker-row-main {
-    display: grid;
-    grid-column: span 2;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 0.75rem;
+    display: contents;
   }
 
-  .ticker-row-meta {
-    display: none;
+  .ticker-row-main > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
   }
 
   .ticker-row-price {
     grid-column: 2;
     grid-row: 1;
-    min-width: 8rem;
+    align-items: flex-end;
+    text-align: right;
   }
 
   .ticker-row-actions {
     grid-column: 3;
     grid-row: 1;
-    min-width: 0;
-    align-self: center;
+    align-self: start;
+    justify-self: end;
   }
-}
 
-/* Desktop-site mode on a touch device: restore the useful metadata once the
-   browser reports enough layout width, while keeping the last-analysis field hidden. */
-@media (pointer: coarse) and (width >= 48rem) and (width < 80rem) {
   .ticker-row-meta {
     display: grid;
-    grid-column: span 2;
+    grid-column: 1 / -1;
+    grid-row: 2;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: start;
     gap: 0.5rem;
-    width: 100%;
-    text-align: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule);
+    text-align: left;
   }
 
   .ticker-row-meta > div {
-    display: flex;
     min-width: 0;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.25rem;
   }
 
   .ticker-row-meta > div:last-child {
     display: none;
   }
 
-  .ticker-row-meta dt,
   .ticker-row-meta dd {
-    min-width: 0;
-    text-align: center;
-  }
-
-  .ticker-row-meta dd {
-    margin-top: 0;
-    line-height: 1.25;
+    margin-top: 0.125rem;
+    line-height: 1.3;
     overflow-wrap: anywhere;
   }
 }
 
-/* Keep touch Desktop-site rows compact: metadata stays in the same horizontal
-   row instead of creating a tall secondary block. */
+/* Wider touch viewports: restore the last-analysis column. */
 @media (pointer: coarse) and (width >= 48rem) and (width < 80rem) {
-  .ticker-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .ticker-row-main {
-    grid-column: 1;
-    grid-template-columns: minmax(8rem, 1fr) minmax(0, 1.35fr) 8rem;
-    align-items: center;
-  }
-
   .ticker-row-meta {
-    grid-column: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: auto;
-    gap: 0.4rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .ticker-row-price {
-    grid-column: 3;
-    grid-row: 1;
-    min-width: 7rem;
-  }
-
-  .ticker-row-actions {
-    grid-column: 2;
-    grid-row: 1;
-    min-width: 0;
-    justify-self: end;
+  .ticker-row-meta > div:last-child {
+    display: block;
   }
 }
 
