@@ -521,3 +521,32 @@ describe("investigation API", () => {
     });
   });
 });
+
+it("keeps the server-owned run alive when the detail page disconnects", async () => {
+  let finish!: () => void;
+  const execute = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const manager = new InvestigationRunManager(execute, { finishedRetentionMs: 1 });
+  const controller = new AbortController();
+
+  manager.start({
+    investigationId: "inv-detached",
+    userId: "user-1",
+    ticker: "ADRO",
+    previousInvestigation: null,
+  });
+
+  const events = manager.subscribe("inv-detached", controller.signal);
+  const pendingEvent = events.next();
+  controller.abort();
+  await pendingEvent;
+
+  finish();
+  await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+  expect(manager.has("inv-detached")).toBe(true);
+  await events.return?.(undefined);
+});

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import type {
   InvestigationClassification,
   InvestigationDriver,
@@ -161,6 +161,7 @@ export interface InvestigationStore {
     content: string,
     uiBlocks?: unknown,
   ): Promise<ConversationRecord>;
+  recoverInterruptedRuns?: () => Promise<number>;
   complete(investigationId: string, completion: InvestigationCompletion): Promise<void>;
   fail(investigationId: string, errorMessage: string): Promise<void>;
 }
@@ -435,6 +436,26 @@ export class PostgresInvestigationStore implements InvestigationStore {
       uiBlocks: row.uiBlocks ?? null,
       createdAt: row.createdAt.toISOString(),
     };
+  }
+
+  async recoverInterruptedRuns(): Promise<number> {
+    const interruptedStatuses: InvestigationStatus[] = [
+      "pending",
+      "collecting_baseline",
+      "calculating_signals",
+      "planning",
+      "investigating",
+      "synthesizing",
+    ];
+    const rows = await this.db
+      .update(investigations)
+      .set({
+        status: "failed",
+        errorMessage: "Investigation interrupted because the server restarted.",
+      })
+      .where(inArray(investigations.status, interruptedStatuses))
+      .returning({ id: investigations.id });
+    return rows.length;
   }
 
   async complete(investigationId: string, completion: InvestigationCompletion): Promise<void> {
