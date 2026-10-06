@@ -15,6 +15,20 @@ import { createWatchlistRoutes } from "./watchlist.ts";
 
 export const apiRoutes = new Hono();
 
+const investigationStore = new PostgresInvestigationStore();
+const startupRecovery = investigationStore.recoverInterruptedRuns?.().then((count) => {
+  if (count > 0) {
+    console.warn(
+      `[sector-context-agent] marked ${count} interrupted investigation(s) as failed after startup`,
+    );
+  }
+});
+
+apiRoutes.use("*", async (_context, next) => {
+  await startupRecovery;
+  await next();
+});
+
 apiRoutes.route("/", healthRoutes);
 
 apiRoutes.all("/auth/*", (c) => auth.handler(c.req.raw));
@@ -27,7 +41,6 @@ const companySearchRoutes = createCompanySearchRoutes({
 });
 apiRoutes.route("/companies/search", companySearchRoutes);
 
-const investigationStore = new PostgresInvestigationStore();
 const investigationManager = new InvestigationRunManager(async (input, emit) => {
   await runStockInvestigation(input, createProductionDependencies(), investigationStore, emit);
 });

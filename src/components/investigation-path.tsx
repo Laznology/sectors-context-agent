@@ -1,5 +1,5 @@
 import type { InvestigationPathStep, PathStepStatus } from "@/lib/investigation-view-model";
-import { Check, ChevronDown, LoaderCircle, MinusCircle, TriangleAlert } from "lucide-react";
+import { Check, LoaderCircle, MinusCircle, TriangleAlert } from "lucide-react";
 
 const STATUS_STYLE: Record<
   PathStepStatus,
@@ -36,7 +36,7 @@ export function InvestigationPath({ steps }: { steps: readonly InvestigationPath
 
   return (
     <div className="space-y-4">
-      <ol>
+      <ol className="m-0 mt-4 list-none p-0">
         {steps.map((step, index) => (
           <PathStep
             key={`${step.toolName}-${index}`}
@@ -45,23 +45,6 @@ export function InvestigationPath({ steps }: { steps: readonly InvestigationPath
           />
         ))}
       </ol>
-
-      <details className="group">
-        <summary className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer items-center gap-1.5 font-mono text-[11px] tracking-wider uppercase">
-          <ChevronDown
-            className="size-3.5 transition-transform group-open:rotate-180"
-            aria-hidden
-          />
-          Detail teknis
-        </summary>
-        <ul className="text-muted-foreground mt-2 space-y-1 font-mono text-[11px]">
-          {steps.map((step, index) => (
-            <li key={`${step.toolName}-tech-${index}`}>
-              {step.toolName} · {step.status} · {step.durationMs} ms
-            </li>
-          ))}
-        </ul>
-      </details>
     </div>
   );
 }
@@ -80,14 +63,16 @@ function PathStep({ step, isLast }: { step: InvestigationPathStep; isLast: boole
         <Icon className={`size-3 ${isRunning ? "animate-spin" : ""}`} aria-hidden />
       </span>
       <div className="min-w-0 space-y-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-foreground text-sm font-semibold">{step.label}</h3>
-          <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-foreground min-w-0 text-sm font-semibold">{step.label}</h3>
+          <span className="text-muted-foreground shrink-0 rounded border border-border/40 px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase">
             {style.label}
           </span>
         </div>
         {step.reason && (
-          <p className="text-muted-foreground text-xs leading-relaxed italic">{step.reason}</p>
+          <p className="text-muted-foreground max-w-[72ch] text-xs leading-relaxed italic">
+            {step.reason}
+          </p>
         )}
         {step.findings.length > 0 ? (
           <ul className="space-y-1">

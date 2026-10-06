@@ -62,28 +62,45 @@ export function parseUiBlocks(payload: unknown): UiBlock[] {
 /**
  * Splits a model answer into its prose and its validated blocks.
  *
- * Scans for the last line that parses as `{"blocks": [...]}`, so trailing prose
- * after the contract cannot leak raw JSON into the bubble, and an earlier
- * mention of `blocks` cannot truncate the answer.
+ * The model may glue `{"blocks": ...}` onto the last sentence with no newline,
+ * so the trailing object is tried first, then a whole-line scan as fallback.
  */
 export function splitBlocksFromAnswer(raw: string): { prose: string; blocks: UiBlock[] } {
-  const lines = raw.split("\n");
+  const trailing = splitTrailingBlocks(raw);
+  if (trailing) return trailing;
 
+  const lines = raw.split("\n");
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const candidate = lines[index].trim();
     if (!candidate.startsWith("{") || !candidate.endsWith("}")) continue;
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(candidate);
-    } catch {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null || !("blocks" in parsed)) continue;
+    const blocks = parseBlocksObject(candidate);
+    if (!blocks) continue;
 
     const prose = [...lines.slice(0, index), ...lines.slice(index + 1)].join("\n").trim();
-    return { prose, blocks: parseUiBlocks((parsed as { blocks?: unknown }).blocks) };
+    return { prose, blocks };
   }
 
   return { prose: raw, blocks: [] };
+}
+
+function splitTrailingBlocks(raw: string): { prose: string; blocks: UiBlock[] } | null {
+  const start = raw.lastIndexOf('{"blocks"');
+  if (start === -1) return null;
+
+  const blocks = parseBlocksObject(raw.slice(start).trim());
+  if (!blocks) return null;
+
+  return { prose: raw.slice(0, start).trim(), blocks };
+}
+
+function parseBlocksObject(candidate: string): UiBlock[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(candidate);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null || !("blocks" in parsed)) return null;
+  return parseUiBlocks((parsed as { blocks?: unknown }).blocks);
 }

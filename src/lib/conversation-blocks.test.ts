@@ -65,4 +65,15 @@ describe("splitBlocksFromAnswer robustness", () => {
     expect(prose).toContain("Answer.");
     expect(blocks).toEqual([]);
   });
+
+  it("splits a contract glued onto the last sentence with no newline", () => {
+    const raw =
+      'Ingin saya dalami lebih lanjut, misalnya data broker?{"blocks":[{"type":"metric","label":"Close","value":"6.100"}]}';
+    const { prose, blocks } = splitBlocksFromAnswer(raw);
+
+    expect(prose).toBe("Ingin saya dalami lebih lanjut, misalnya data broker?");
+    expect(prose).not.toContain("blocks");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].type).toBe("metric");
+  });
 });
