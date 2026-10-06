@@ -8,7 +8,7 @@ export const rootRoute = createRootRoute({
 function RootLayout() {
   return (
     <>
-      <header className="mx-auto flex w-full max-w-6xl items-center px-4 py-4">
+      <header className="app-header mx-auto flex w-full max-w-6xl items-center px-6 py-4 sm:px-8">
         <Link
           to="/"
           aria-label="Accel"

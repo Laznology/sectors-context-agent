@@ -225,7 +225,7 @@ function AppShell() {
       {!isLoading && watchlist.length > 0 && (
         <section aria-label="Ringkasan watchlist" className="space-y-3">
           <h2 className="text-base font-semibold">Ringkasan</h2>
-          <div className="grid gap-x-6 sm:grid-cols-3">
+          <div className="watchlist-summary-grid">
             {summaryGroups.map(({ label, tickers }) => {
               const visibleTickers = tickers
                 .slice(0, 3)
@@ -234,15 +234,14 @@ function AppShell() {
               const remainingCount = tickers.length - 3;
 
               return (
-                <div
-                  key={label}
-                  className="border-t border-border/40 py-3 sm:border-t-0 sm:border-l sm:pl-5 sm:first:border-l-0 sm:first:pl-0"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <h3 className="text-sm font-medium">{label}</h3>
-                    <span className="tabular font-mono text-lg">{tickers.length}</span>
+                <div key={label} className="watchlist-summary-card">
+                  <div className="flex items-start justify-between gap-4">
+                    <h3 className="text-foreground text-sm font-medium leading-5">{label}</h3>
+                    <span className="text-foreground tabular shrink-0 font-mono text-lg leading-5">
+                      {tickers.length}
+                    </span>
                   </div>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="text-muted-foreground mt-2 min-h-5 text-xs leading-5">
                     {tickers.length === 0
                       ? "Tidak ada"
                       : `${visibleTickers}${remainingCount > 0 ? `, +${remainingCount} lainnya` : ""}`}
@@ -325,9 +324,7 @@ function AppShell() {
                     <div>
                       <dt>Perhatian</dt>
                       <dd>
-                        {item.statusLabel
-                          ? STATUS_LABEL_TEXT[item.statusLabel]
-                          : "Belum dianalisis"}
+                        <AttentionBadge statusLabel={item.statusLabel} />
                       </dd>
                     </div>
                     <div>
@@ -444,6 +441,18 @@ const RUN_STATUS_TEXT: Record<WatchlistItem["investigationStatus"], string> = {
   FAILED: "Gagal",
   NONE: "Belum dimulai",
 };
+function AttentionBadge({ statusLabel }: { statusLabel: WatchlistItem["statusLabel"] }) {
+  const label = statusLabel ? STATUS_LABEL_TEXT[statusLabel] : "Belum dianalisis";
+  const style =
+    statusLabel === "attention"
+      ? "attention-badge attention-badge-alert"
+      : statusLabel === "normal"
+        ? "attention-badge attention-badge-normal"
+        : "attention-badge attention-badge-unknown";
+
+  return <span className={style}>{label}</span>;
+}
+
 function StatusBadge({ status }: { status: WatchlistItem["investigationStatus"] }) {
   const styles: Record<WatchlistItem["investigationStatus"], string> = {
     COMPLETED: "status-completed",

@@ -69,8 +69,32 @@ function InvestigationContent() {
   const [notFound, setNotFound] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [openChatId, setOpenChatId] = useState<string | null>(null);
+  const [isChatClosing, setIsChatClosing] = useState(false);
+  const closeChatTimerRef = useRef<number | null>(null);
   const isChatOpen = summaryData?.status === "COMPLETED" && openChatId === summaryData.id;
   const loadingRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeChatTimerRef.current !== null) window.clearTimeout(closeChatTimerRef.current);
+    };
+  }, []);
+
+  function openChat() {
+    if (closeChatTimerRef.current !== null) window.clearTimeout(closeChatTimerRef.current);
+    setIsChatClosing(false);
+    setOpenChatId(summaryData?.id ?? null);
+  }
+
+  function closeChat() {
+    if (!isChatOpen) return;
+    setIsChatClosing(true);
+    setOpenChatId(null);
+    closeChatTimerRef.current = window.setTimeout(() => {
+      setIsChatClosing(false);
+      closeChatTimerRef.current = null;
+    }, 300);
+  }
 
   const currentStatusIdx = PIPELINE_STEPS.indexOf(eventData.status);
   const isTerminal = eventData.status === "completed" || eventData.status === "failed";
@@ -146,20 +170,16 @@ function InvestigationContent() {
   });
 
   return (
-    <div
-      className={`dashboard-wrapper space-y-8 ${
-        isChatOpen ? "xl:max-w-none xl:pl-6 xl:pr-[39rem]" : ""
-      }`}
-    >
+    <div className="dashboard-wrapper space-y-8">
       <div className="border-rule flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2">
           <Button
-            variant="ghost"
+            variant="default"
             size="sm"
             onClick={() => {
               void navigate({ to: "/" });
             }}
-            className="text-muted-foreground -ml-2 w-fit text-xs"
+            className="w-fit text-xs"
           >
             <ArrowLeft aria-hidden />
             Kembali ke dasbor
@@ -184,7 +204,7 @@ function InvestigationContent() {
               size="sm"
               variant={isChatOpen ? "secondary" : "outline"}
               aria-expanded={isChatOpen}
-              onClick={() => setOpenChatId(isChatOpen ? null : summaryData.id)}
+              onClick={() => (isChatOpen ? closeChat() : openChat())}
             >
               {isChatOpen ? <X aria-hidden /> : <MessageSquare aria-hidden />}
               {isChatOpen ? "Tutup chat" : "Tanya agent"}
@@ -201,7 +221,8 @@ function InvestigationContent() {
           ticker={summaryData.ticker || ticker}
           initialMessages={summaryData.conversation}
           isOpen={isChatOpen}
-          onClose={() => setOpenChatId(null)}
+          isClosing={isChatClosing}
+          onClose={closeChat}
         />
       )}
 

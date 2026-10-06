@@ -195,7 +195,7 @@
 @layer components {
   /* Layout Container */
   .dashboard-wrapper {
-    @apply flex w-full flex-col gap-8 max-w-6xl mx-auto px-4 py-6 text-foreground;
+    @apply flex w-full flex-col gap-8 max-w-6xl mx-auto px-6 py-6 text-foreground sm:px-8;
   }
 
   /* Header Section */
@@ -224,6 +224,14 @@
     @apply text-xs text-muted-foreground mt-0.5;
   }
 
+  .watchlist-summary-grid {
+    @apply grid gap-3 sm:grid-cols-3;
+  }
+
+  .watchlist-summary-card {
+    @apply flex min-h-24 flex-col justify-center rounded-xl border border-border/60 bg-card/60 px-4 py-3;
+  }
+
   /* Watchlist list */
   .watchlist-list {
     @apply divide-border/40 border-border/60 bg-card/60 divide-y overflow-hidden rounded-xl border;
@@ -239,17 +247,19 @@
 
   @media (width >= 48rem) {
     .ticker-row {
-      @apply flex gap-4;
+      display: grid;
+      grid-template-columns: minmax(11rem, 1fr) minmax(0, 36.25rem) 9.5rem auto;
+      column-gap: 1.25rem;
+      align-items: center;
     }
 
     .ticker-row-main {
-      @apply col-span-1;
-      grid-template-columns: minmax(0, 12rem) minmax(0, 1fr) auto;
+      display: contents;
     }
   }
 
   .ticker-row-meta {
-    @apply text-muted-foreground hidden text-[11px];
+    @apply text-muted-foreground hidden text-[11px] text-center;
   }
 
   /* At md+ the metadata switches to a fixed-column grid so every row's
@@ -287,7 +297,7 @@
 
   @media (width >= 48rem) {
     .ticker-row-price {
-      @apply col-auto row-auto;
+      @apply col-auto row-auto ml-0 min-w-0;
     }
 
     .ticker-row-actions {
@@ -330,6 +340,22 @@
 
   .status-none {
     @apply bg-muted/40 text-muted-foreground border-border/40;
+  }
+
+  .attention-badge {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium whitespace-nowrap;
+  }
+
+  .attention-badge-alert {
+    @apply border-rose-500/40 bg-rose-500/10 text-rose-400;
+  }
+
+  .attention-badge-normal {
+    @apply border-sky-500/40 bg-sky-500/10 text-sky-400;
+  }
+
+  .attention-badge-unknown {
+    @apply border-border/50 bg-muted/40 text-muted-foreground;
   }
 
   /* Empty State */
@@ -379,5 +405,105 @@
   }
   .badge-muted {
     @apply border-border/60 bg-muted/40 text-muted-foreground;
+  }
+}
+
+/* Chat workspace transition: only transform/opacity animate, so the compositor
+   runs it on the GPU without reflowing the page. The panel stays mounted so the
+   exit can play instead of snapping away. On xl the panel is fixed and slides;
+   below xl it is an in-flow block, so it is simply hidden while closed to avoid
+   reserving phantom space. */
+.investigation-chat-panel {
+  display: none;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.investigation-chat-panel.is-open {
+  display: flex;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+@media (width >= 80rem) {
+  /* Centre the report in the space left of the panel, so both gaps read equal. */
+  body:has(.investigation-chat-panel.is-open) .app-header,
+  body:has(.investigation-chat-panel.is-open) .dashboard-wrapper {
+    --chat-reserve: 38.5rem;
+    --chat-gap: 1.5rem;
+    --chat-available: calc(100vw - var(--chat-reserve) - var(--chat-gap) * 2);
+    max-width: min(72rem, var(--chat-available));
+    margin-left: max(
+      var(--chat-gap),
+      calc((100vw - var(--chat-reserve) - min(72rem, var(--chat-available))) / 2)
+    );
+    margin-right: 0;
+  }
+
+  .investigation-chat-panel {
+    display: flex;
+    visibility: hidden;
+    transform: translateX(100%);
+    transition:
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 280ms;
+  }
+
+  .investigation-chat-panel.is-open {
+    visibility: visible;
+    transform: translateX(0);
+    transition:
+      opacity 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 0s;
+  }
+
+  /* Exit keeps transform-only; layout stays reserved until it finishes. */
+  .investigation-chat-panel.is-open.is-closing {
+    visibility: visible;
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .investigation-chat-panel,
+  .investigation-chat-panel.is-open {
+    transition: none;
+  }
+}
+
+.chat-sentence {
+  opacity: 0;
+  transition: opacity 420ms ease-out;
+}
+
+.chat-sentence.is-shown {
+  opacity: 1;
+}
+
+.chat-block {
+  animation: chat-block-in 360ms ease-out both;
+}
+
+@keyframes chat-block-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-sentence {
+    opacity: 1;
+    transition: none;
+  }
+  .chat-block {
+    animation: none;
   }
 }
