@@ -248,8 +248,8 @@
   @media (width >= 48rem) {
     .ticker-row {
       display: grid;
-      grid-template-columns: minmax(11rem, 1fr) minmax(0, 36.25rem) 9.5rem auto;
-      column-gap: 1.25rem;
+      grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) 10rem 8.5rem;
+      column-gap: 1rem;
       align-items: center;
     }
 
@@ -273,7 +273,7 @@
   @media (width >= 48rem) {
     .ticker-row-meta {
       display: grid;
-      grid-template-columns: 7.5rem 9rem 8.5rem 9rem;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       column-gap: 0.75rem;
       align-items: start;
     }
@@ -288,11 +288,11 @@
   }
 
   .ticker-row-price {
-    @apply col-start-2 row-start-1 flex flex-col items-end gap-0.5 text-right min-w-0;
+    @apply col-start-2 row-start-1 flex min-w-0 flex-col items-end gap-0.5 text-right;
   }
 
   .ticker-row-actions {
-    @apply col-start-2 row-start-2 flex shrink-0 items-center justify-self-end gap-1.5;
+    @apply col-start-2 row-start-2 flex min-w-0 shrink-0 items-center justify-self-end gap-1.5;
   }
 
   @media (width >= 48rem) {
@@ -301,7 +301,7 @@
     }
 
     .ticker-row-actions {
-      @apply col-auto row-auto;
+      @apply col-auto row-auto min-w-[8.5rem] justify-end;
     }
   }
 
@@ -356,6 +356,27 @@
 
   .attention-badge-unknown {
     @apply border-border/50 bg-muted/40 text-muted-foreground;
+  }
+
+  .report-collapsible {
+    min-height: 4.75rem;
+  }
+
+  .report-collapsible:not([open]) {
+    display: flex;
+    align-items: center;
+  }
+
+  .report-collapsible:not([open]) > summary {
+    flex: 1;
+  }
+
+  .report-collapsible[open] > summary {
+    margin-bottom: 1rem;
+  }
+
+  .report-collapsible[open] > * + * {
+    margin-top: 1rem;
   }
 
   /* Empty State */
@@ -426,18 +447,26 @@
 }
 
 @media (width >= 80rem) {
-  /* Centre the report in the space left of the panel, so both gaps read equal. */
+  /* Centre report + panel as one group; --chat-panel must track the panel width. */
+  body:has(.investigation-chat-panel.is-open) {
+    --chat-panel: 30rem;
+    --chat-gap: 1.5rem;
+    --chat-content: min(72rem, calc(100vw - var(--chat-panel) - var(--chat-gap) * 3));
+    --chat-outer: max(
+      var(--chat-gap),
+      calc((100vw - var(--chat-content) - var(--chat-gap) - var(--chat-panel)) / 2)
+    );
+  }
+
   body:has(.investigation-chat-panel.is-open) .app-header,
   body:has(.investigation-chat-panel.is-open) .dashboard-wrapper {
-    --chat-reserve: 38.5rem;
-    --chat-gap: 1.5rem;
-    --chat-available: calc(100vw - var(--chat-reserve) - var(--chat-gap) * 2);
-    max-width: min(72rem, var(--chat-available));
-    margin-left: max(
-      var(--chat-gap),
-      calc((100vw - var(--chat-reserve) - min(72rem, var(--chat-available))) / 2)
-    );
-    margin-right: 0;
+    max-width: var(--chat-content);
+    margin-inline: var(--chat-outer);
+  }
+
+  .investigation-chat-panel.is-open,
+  .investigation-chat-panel.is-open.is-closing {
+    right: var(--chat-outer);
   }
 
   .investigation-chat-panel {
@@ -505,5 +534,144 @@
   }
   .chat-block {
     animation: none;
+  }
+}
+
+/* Touch devices using the browser's "Desktop site" still need the compact
+   watchlist layout. The coarse pointer media feature catches that mode when
+   the reported viewport is wider than the physical screen. */
+@media (pointer: coarse) and (width < 80rem) {
+  .watchlist-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticker-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 8rem auto;
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+  }
+
+  .ticker-row-main {
+    display: grid;
+    grid-column: span 2;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.75rem;
+  }
+
+  .ticker-row-meta {
+    display: none;
+  }
+
+  .ticker-row-price {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 8rem;
+  }
+
+  .ticker-row-actions {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
+    align-self: center;
+  }
+}
+
+/* Desktop-site mode on a touch device: restore the useful metadata once the
+   browser reports enough layout width, while keeping the last-analysis field hidden. */
+@media (pointer: coarse) and (width >= 48rem) and (width < 80rem) {
+  .ticker-row-meta {
+    display: grid;
+    grid-column: span 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.5rem;
+    width: 100%;
+    text-align: center;
+  }
+
+  .ticker-row-meta > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .ticker-row-meta > div:last-child {
+    display: none;
+  }
+
+  .ticker-row-meta dt,
+  .ticker-row-meta dd {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .ticker-row-meta dd {
+    margin-top: 0;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Keep touch Desktop-site rows compact: metadata stays in the same horizontal
+   row instead of creating a tall secondary block. */
+@media (pointer: coarse) and (width >= 48rem) and (width < 80rem) {
+  .ticker-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .ticker-row-main {
+    grid-column: 1;
+    grid-template-columns: minmax(8rem, 1fr) minmax(0, 1.35fr) 8rem;
+    align-items: center;
+  }
+
+  .ticker-row-meta {
+    grid-column: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: auto;
+    gap: 0.4rem;
+  }
+
+  .ticker-row-price {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 7rem;
+  }
+
+  .ticker-row-actions {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    justify-self: end;
+  }
+}
+
+/* On touch devices, the chat is a focused overlay instead of shrinking the
+   report into a narrow desktop column. */
+@media (pointer: coarse) {
+  body:has(.investigation-chat-panel.is-open) .dashboard-wrapper {
+    max-width: none !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  body:has(.investigation-chat-panel.is-open) .app-header {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .investigation-chat-panel.is-open,
+  .investigation-chat-panel.is-open.is-closing {
+    position: fixed !important;
+    inset: 1rem !important;
+    width: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: calc(100dvh - 2rem) !important;
+    max-height: calc(100dvh - 2rem) !important;
   }
 }

@@ -170,7 +170,7 @@ function InvestigationContent() {
   });
 
   return (
-    <div className="dashboard-wrapper space-y-8">
+    <div className="dashboard-wrapper">
       <div className="border-rule flex flex-col gap-4 border-b pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2">
           <Button
@@ -351,7 +351,7 @@ function InvestigationContent() {
         )}
 
         {stage === "report" && summaryData && (
-          <main className="min-w-0 space-y-6">
+          <main className="min-w-0 space-y-8">
             <InvestigationVerdict data={summaryData} />
             <InvestigationReport
               data={summaryData}

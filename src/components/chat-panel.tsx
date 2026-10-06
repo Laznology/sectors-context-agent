@@ -159,7 +159,7 @@ export function ChatPanel({
     <aside
       id="investigation-chat-panel"
       aria-labelledby={titleId}
-      className={`investigation-chat-panel relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-10 xl:bottom-6 xl:h-auto xl:w-[36rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0 ${
+      className={`investigation-chat-panel relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-10 xl:bottom-6 xl:h-auto xl:w-[30rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0 ${
         isOpen ? `is-open${isClosing ? " is-closing" : ""}` : "is-closed"
       }`}
       aria-hidden={!isOpen}
