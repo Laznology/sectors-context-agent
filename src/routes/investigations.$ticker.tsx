@@ -179,7 +179,7 @@ function InvestigationContent() {
             onClick={() => {
               void navigate({ to: "/" });
             }}
-            className="w-fit text-xs"
+            className="border-signal/60 bg-signal/15 text-foreground mb-6 w-fit text-xs hover:bg-signal/25"
           >
             <ArrowLeft aria-hidden />
             Kembali ke dasbor
