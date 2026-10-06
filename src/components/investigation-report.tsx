@@ -4,11 +4,7 @@ import { InvestigationSignalChart } from "@/components/investigation-signal-char
 import { InvestigationTimeline } from "@/components/investigation-timeline";
 import { Button } from "@/components/ui/button";
 import type { InvestigationData, LikelyDriver } from "@/lib/investigation-view-model";
-import {
-  CONFIDENCE_TEXT,
-  DRIVER_TEXT,
-  INVESTIGATION_DISCLAIMER,
-} from "@/shared/schemas/investigation.ts";
+import { DRIVER_TEXT, INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
 import { ChevronDown, RefreshCw } from "lucide-react";
 const NUMBER = new Intl.NumberFormat("id-ID");
 const PERCENT = new Intl.NumberFormat("id-ID", {
@@ -27,12 +23,6 @@ const DRIVER_STYLE: Record<LikelyDriver, string> = {
   COMPANY_SPECIFIC: "border-ink/25 bg-ink/10 text-ink",
   MIXED: "border-signal/45 bg-signal/20 text-ink",
   UNCLEAR: "border-border/60 bg-muted/40 text-muted-foreground",
-};
-
-const CONFIDENCE_CLASS: Record<NonNullable<InvestigationData["confidence"]>, string> = {
-  HIGH: "badge-signal",
-  MEDIUM: "badge-ink",
-  LOW: "badge-muted",
 };
 
 const VERDICT_LABEL = "text-muted-foreground font-mono text-xs font-bold tracking-wider uppercase";
@@ -54,9 +44,9 @@ const CHEVRON = "size-3.5 shrink-0 transition-transform group-open:rotate-180";
 
 /**
  * The answer leads. The plain-language sentence is the largest prose on the page,
- * because a retail investor should be able to stop reading there; the driver and
- * confidence badges are the classification of that sentence, not the answer
- * itself. Exported on its own so the page can slot the follow-up chat directly
+ * because a retail investor should be able to stop reading there; the driver
+ * badge classifies the likely source of the move, not the answer itself. Exported
+ * on its own so the page can slot the follow-up chat directly
  * after the verdict. Every line is derived from the run data: no claim here goes
  * beyond what the agent reported.
  */
@@ -84,11 +74,7 @@ export function InvestigationVerdict({ data }: { data: InvestigationData }) {
         >
           {DRIVER_TEXT[data.likelyDriver]}
         </span>
-        {showConfidence && (
-          <span className={`badge px-3 py-1.5 text-xs ${CONFIDENCE_CLASS[data.confidence]}`}>
-            Keyakinan {CONFIDENCE_TEXT[data.confidence]}
-          </span>
-        )}
+
         {collected.length > 0 && (
           <span className="text-muted-foreground text-xs">
             {collected.length}/{total} kategori bukti
