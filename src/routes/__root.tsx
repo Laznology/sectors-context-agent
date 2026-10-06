@@ -1,8 +1,4 @@
 import "@/index.css";
-import { indexRoute } from "@/routes/index";
-import { investigationDetailRoute } from "@/routes/investigations.$ticker";
-import { signInRoute } from "@/routes/sign-in";
-import { signUpRoute } from "@/routes/sign-up";
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 
 export const rootRoute = createRootRoute({
@@ -16,9 +12,9 @@ function RootLayout() {
         <Link
           to="/"
           aria-label="Accel"
-          className="inline-flex items-center gap-2 font-serif text-lg font-semibold tracking-tight"
+          className="inline-flex items-center gap-2 font-serif text-xl font-semibold tracking-tight"
         >
-          <img src="/android-chrome-192x192.png" alt="" className="size-8" />
+          <img src="/android-chrome-192x192.png" alt="" className="h-9 w-auto" />
           <span>Accel</span>
         </Link>
       </header>
@@ -26,11 +22,3 @@ function RootLayout() {
     </>
   );
 }
-
-// Wajib terdaftar di array ini
-export const routeTree = rootRoute.addChildren([
-  indexRoute,
-  investigationDetailRoute,
-  signInRoute,
-  signUpRoute,
-]);
