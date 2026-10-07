@@ -1,10 +1,11 @@
 import { AddTickerDialog } from "@/components/add-ticker-dialog";
-import { CommandPalette } from "@/components/command-palette";
+import { CommandPalette, type CommandPaletteHandle } from "@/components/command-palette";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { SessionGuard } from "@/lib/session";
+import { resolveFocusAction } from "@/lib/focus-action";
 import {
   toWatchlistItems,
   type WatchlistDashboardResponse,
@@ -14,7 +15,7 @@ import { rootRoute } from "@/routes/__root";
 import { DRIVER_TEXT, STATUS_LABEL_TEXT } from "@/shared/schemas/investigation.ts";
 import { createRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LoaderCircle, Plus, Trash } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import "@/index.css";
 
@@ -43,6 +44,7 @@ function AppShell() {
   const [question, setQuestion] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deletingTicker, setDeletingTicker] = useState<string | null>(null);
+  const paletteRef = useRef<CommandPaletteHandle | null>(null);
 
   // Fetches the dashboard payload. State updates happen in the caller so the
   // effect can defer them (see the effect below).
@@ -175,10 +177,22 @@ function AppShell() {
   };
 
   function handlePaletteSelect(item: WatchlistItem) {
-    if (item.primaryAction === "OPEN_REPORT") {
-      void navigate({ to: "/investigations/$ticker", params: { ticker: item.ticker } });
+    const action = resolveFocusAction({
+      ticker: item.ticker,
+      question,
+      primaryAction: item.primaryAction,
+    });
+    if (action.type === "OPEN_CHAT") {
+      void navigate({
+        to: "/investigations/$ticker",
+        params: { ticker: action.ticker },
+        search: { chat: true, q: action.question },
+      });
+    } else if (action.type === "OPEN_REPORT") {
+      void navigate({ to: "/investigations/$ticker", params: { ticker: action.ticker } });
     } else {
-      void handleInvestigate(item.ticker);
+      // UPDATE and INVESTIGATE both mean: start a new run for this ticker.
+      void handleInvestigate(action.ticker);
     }
   }
 
@@ -208,6 +222,7 @@ function AppShell() {
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <CommandPalette
+            ref={paletteRef}
             watchlist={watchlist}
             onSelectTicker={handlePaletteSelect}
             onAddTicker={openAddTickerDialog}
@@ -400,7 +415,8 @@ function AppShell() {
               Fokus investigasi berikutnya
             </Label>
             <p id="question-help" className="text-[11px] leading-4 text-muted-foreground">
-              Diterapkan saat Anda memilih Investigasi atau Perbarui.
+              Diterapkan saat Anda memilih Investigasi atau Perbarui. Tekan Enter untuk memilih
+              saham.
             </p>
           </div>
           <Input
@@ -409,6 +425,12 @@ function AppShell() {
             placeholder="Contoh: Apa yang menjelaskan selisih pergerakan dengan IHSG?"
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                event.preventDefault();
+                paletteRef.current?.open();
+              }
+            }}
             aria-describedby="question-help"
           />
         </section>

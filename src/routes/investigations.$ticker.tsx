@@ -25,11 +25,14 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { parseInvestigationSearch } from "@/lib/focus-action";
+import { useSearch } from "@tanstack/react-router";
 
 export const investigationDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/investigations/$ticker",
   component: InvestigationDetailPage,
+  validateSearch: parseInvestigationSearch,
 });
 
 /** Ordered stages of the run; the labels live in the shared schema so no surface re-invents them. */
@@ -62,6 +65,7 @@ function InvestigationContent() {
   const navigate = useNavigate();
 
   const { eventData } = useInvestigationSSE(ticker);
+  const search = useSearch({ strict: false }) as { chat?: boolean; q?: string };
 
   const [summaryData, setSummaryData] = useState<InvestigationData | null>(null);
   const [isFetchingSummary, setIsFetchingSummary] = useState(true);
@@ -79,6 +83,19 @@ function InvestigationContent() {
       if (closeChatTimerRef.current !== null) window.clearTimeout(closeChatTimerRef.current);
     };
   }, []);
+
+  // Deep link from the dashboard focus box: ?chat=1&q=... opens the agent
+  // chat directly with the question prefilled.
+  useEffect(() => {
+    if (
+      search.chat === true &&
+      summaryData?.status === "COMPLETED" &&
+      openChatId !== summaryData.id
+    ) {
+      openChat();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.chat, summaryData?.status, summaryData?.id]);
 
   function openChat() {
     if (closeChatTimerRef.current !== null) window.clearTimeout(closeChatTimerRef.current);
@@ -220,6 +237,7 @@ function InvestigationContent() {
           investigationId={summaryData.id}
           ticker={summaryData.ticker || ticker}
           initialMessages={summaryData.conversation}
+          initialDraft={search.q}
           isOpen={isChatOpen}
           isClosing={isChatClosing}
           onClose={closeChat}
