@@ -83,10 +83,16 @@ export function ChatPanel({
     list.scrollTop = list.scrollHeight;
   }, [messages.length, isSending, isOpen]);
 
-  // Align the new answer's top so its reveal starts in view, not at the bottom.
+  // Align the new answer's top so its reveal starts in view. Scroll the
+  // thread container only — scrollIntoView would also scroll the window and
+  // yank the page while the user is typing.
   useEffect(() => {
     if (!revealMessageId) return;
-    latestAnswerRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    const list = listRef.current;
+    const answer = latestAnswerRef.current;
+    if (!list || !answer) return;
+    const top = answer.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    list.scrollTo({ top: list.scrollTop + top, behavior: "smooth" });
   }, [revealMessageId]);
 
   async function sendMessage() {
@@ -171,7 +177,7 @@ export function ChatPanel({
     <aside
       id="investigation-chat-panel"
       aria-labelledby={titleId}
-      className={`investigation-chat-panel relative flex h-[min(70dvh,40rem)] min-h-96 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground xl:fixed xl:top-6 xl:right-10 xl:bottom-6 xl:h-auto xl:w-[30rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0 ${
+      className={`investigation-chat-panel fixed inset-x-3 bottom-3 z-30 flex h-[min(72dvh,40rem)] min-h-96 w-auto min-w-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-panel text-card-foreground shadow-none xl:inset-x-auto xl:top-6 xl:right-10 xl:bottom-6 xl:h-auto xl:w-[30rem] xl:max-h-[calc(100dvh-3rem)] xl:min-h-0 ${
         isOpen ? `is-open${isClosing ? " is-closing" : ""}` : "is-closed"
       }`}
       aria-hidden={!isOpen}
@@ -253,6 +259,24 @@ export function ChatPanel({
             );
           })}
 
+          {!isSending && recentMessages.at(-1)?.role === "assistant" && (
+            <div className="space-y-1.5 pt-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Pertanyaan lanjutan
+              </p>
+              {suggestedQuestions.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => askSuggestedQuestion(question)}
+                  className="block w-full py-1 text-left text-sm text-foreground/85 transition-colors hover:text-signal-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          )}
+
           {isSending && (
             <div className="flex items-start gap-2 border-y border-border/50 py-3 text-sm text-muted-foreground">
               <LoaderCircle
@@ -298,7 +322,7 @@ export function ChatPanel({
               onKeyDown={handleKeyDown}
               disabled={isSending}
               placeholder={`Contoh: bukti mana yang paling mendukung kesimpulan ${ticker}?`}
-              className="block max-h-40 min-h-28 w-full resize-y bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              className="block max-h-40 min-h-28 w-full resize-none bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
             <div className="flex items-center justify-between gap-3 border-t border-border/50 px-3 py-2">
               <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
@@ -307,9 +331,6 @@ export function ChatPanel({
                 <Kbd>Shift+Enter</Kbd> baris baru
               </span>
               <div className="flex shrink-0 items-center gap-3">
-                <span className="tabular font-mono text-[10px] text-muted-foreground">
-                  {draft.length}/{MAX_MESSAGE_LENGTH}
-                </span>
                 <Button
                   type="submit"
                   size="sm"

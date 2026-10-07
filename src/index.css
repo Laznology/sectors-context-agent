@@ -638,7 +638,7 @@
 
   .ticker-row {
     display: grid;
-    grid-template-columns: minmax(5.5rem, 1fr) minmax(0, auto) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     column-gap: 0.75rem;
     row-gap: 0.75rem;
@@ -655,14 +655,22 @@
   }
 
   .ticker-row-price {
-    grid-column: 2;
-    grid-row: 1;
-    align-items: flex-end;
-    text-align: right;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .ticker-price {
+    white-space: nowrap;
+  }
+
+  .ticker-row-price span {
+    white-space: nowrap;
   }
 
   .ticker-row-actions {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
     align-self: start;
     justify-self: end;
@@ -671,9 +679,9 @@
   .ticker-row-meta {
     display: grid;
     grid-column: 1 / -1;
-    grid-row: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-row: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem 1rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--rule);
     text-align: left;
