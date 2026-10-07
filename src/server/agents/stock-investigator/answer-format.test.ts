@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { toPlainAnswer } from "./answer-format.ts";
 
 describe("toPlainAnswer", () => {
-  it("strips markdown, narration, and dashes from a report-style answer", () => {
+  it("keeps markdown while dropping narration and normalising dashes", () => {
     const raw = [
       "The data clearly answers the question. Let me summarize.",
       "",
@@ -20,14 +20,16 @@ describe("toPlainAnswer", () => {
 
     expect(toPlainAnswer(raw)).toBe(
       [
-        "Apakah foreign flow ini berlanjut? Ya, berbalik menjadi outflow.",
+        "## Apakah foreign flow ini berlanjut? **Ya, berbalik menjadi outflow.**",
         "",
-        "1. Pola arus asing",
+        "### 1. Pola arus asing",
         "",
-        "- 09-23 Sep, Outflow besar, −16,5 M s.d. −638,6 M IDR",
+        "| Periode | Karakter | Rentang net |",
+        "|---|---|---|",
+        "| 09-23 Sep | **Outflow besar** | −16,5 M s.d. −638,6 M IDR |",
         "",
-        "- Penjual utama: AK net −668,3 M IDR",
-        "Catatan: data 21 Agu bernilai 0.",
+        "- Penjual utama: `AK` net −668,3 M IDR",
+        "*Catatan: data 21 Agu bernilai 0.*",
       ].join("\n"),
     );
   });

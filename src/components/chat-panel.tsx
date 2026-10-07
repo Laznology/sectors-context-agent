@@ -7,13 +7,23 @@
  * investigation evidence, and may call Sectors tools for fresh data.
  */
 import { UiBlockView } from "@/components/ui-block";
+import { Markdown } from "@comark/react";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
 import { toMessageParts } from "@/lib/conversation-view-model";
 import type { ConversationMessage } from "@/lib/investigation-view-model";
 import { INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
 import { ChevronDown, LoaderCircle, Send, X } from "lucide-react";
-import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { z } from "zod";
 
 const MAX_MESSAGE_LENGTH = 4_000;
@@ -37,6 +47,7 @@ export function ChatPanel({
   investigationId,
   ticker,
   initialMessages,
+  initialDraft,
   isOpen,
   isClosing,
   onClose,
@@ -44,13 +55,14 @@ export function ChatPanel({
   investigationId: string;
   ticker: string;
   initialMessages: ConversationMessage[];
+  initialDraft?: string;
   isOpen: boolean;
   isClosing: boolean;
   onClose: () => void;
 }) {
   const inputId = useId();
   const [messages, setMessages] = useState<ConversationMessage[]>(initialMessages);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => initialDraft ?? "");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revealMessageId, setRevealMessageId] = useState<string | null>(null);
@@ -289,8 +301,10 @@ export function ChatPanel({
               className="block max-h-40 min-h-28 w-full resize-y bg-transparent px-3.5 py-3 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             />
             <div className="flex items-center justify-between gap-3 border-t border-border/50 px-3 py-2">
-              <span className="text-[10px] text-muted-foreground">
-                Enter kirim <span aria-hidden>·</span> Shift+Enter baris baru
+              <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <Kbd>Enter</Kbd> kirim
+                <span aria-hidden>·</span>
+                <Kbd>Shift+Enter</Kbd> baris baru
               </span>
               <div className="flex shrink-0 items-center gap-3">
                 <span className="tabular font-mono text-[10px] text-muted-foreground">
@@ -322,40 +336,38 @@ export function ChatPanel({
   );
 }
 
-const SENTENCE_CHUNK = /[^.!?\n]+(?:[.!?]+|\n|$)/g;
-const REVEAL_STEP_MS = 130;
+const BLOCKS_DELAY_MS = 600;
 
-function splitSentences(text: string): string[] {
-  const chunks = text.match(SENTENCE_CHUNK);
-  return chunks && chunks.length > 0 ? chunks : [text];
-}
-
-function RevealText({ text, onDone }: { text: string; onDone?: () => void }) {
-  const [sentences] = useState(() => splitSentences(text));
-  const [shown, setShown] = useState(0);
-  const done = shown >= sentences.length;
-  const announcedRef = useRef(false);
-
+/**
+ * Renders the agent answer as markdown. Comark is async, so fall back to the
+ * raw text while it parses; once mounted the layout is stable enough to
+ * reveal the UI blocks underneath.
+ */
+function MarkdownMessage({
+  text,
+  animate,
+  onDone,
+}: {
+  text: string;
+  animate: boolean;
+  onDone?: () => void;
+}) {
   useEffect(() => {
-    if (done) {
-      if (!announcedRef.current) {
-        announcedRef.current = true;
-        onDone?.();
-      }
+    if (!animate) {
+      onDone?.();
       return;
     }
-    const timer = window.setTimeout(() => setShown((count) => count + 1), REVEAL_STEP_MS);
+    const timer = window.setTimeout(() => onDone?.(), BLOCKS_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [shown, sentences.length, done, onDone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <p className="whitespace-pre-wrap">
-      {sentences.map((sentence, index) => (
-        <span key={index} className={`chat-sentence${index < shown ? " is-shown" : ""}`}>
-          {sentence}
-        </span>
-      ))}
-    </p>
+    <div className="chat-markdown chat-block">
+      <Suspense fallback={<p className="whitespace-pre-wrap">{text}</p>}>
+        <Markdown value={text} />
+      </Suspense>
+    </div>
   );
 }
 
@@ -379,12 +391,17 @@ function ChatBubble({ message, animate }: { message: ConversationMessage; animat
         </p>
         {parts.map((part, index) =>
           part.kind === "text" ? (
-            animate ? (
-              <RevealText key={index} text={part.text} onDone={() => setBlocksReady(true)} />
-            ) : (
+            isUser ? (
               <p key={index} className="whitespace-pre-wrap">
                 {part.text}
               </p>
+            ) : (
+              <MarkdownMessage
+                key={index}
+                text={part.text}
+                animate={animate}
+                onDone={() => setBlocksReady(true)}
+              />
             )
           ) : blocksReady ? (
             <div key={index} className="chat-block">

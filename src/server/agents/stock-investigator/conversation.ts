@@ -32,7 +32,7 @@ export type InvestigationConversationResult = {
 };
 
 /**
- * House style for follow-up answers. The chat renders plain text, and answers
+ * House style for follow-up answers. The chat renders markdown, and answers
  * should read like a short analyst note rather than a generated report.
  */
 export const FOLLOW_UP_STYLE_INSTRUCTION = [
@@ -41,7 +41,7 @@ export const FOLLOW_UP_STYLE_INSTRUCTION = [
   "Then give at most four short supporting points, each on its own line starting with '- '. Each point names the date or period and the figure from the evidence or tool data.",
   "Optionally end with one line that starts with 'Pantau: ' naming what to watch next.",
   "Keep the whole answer under 120 words. Leave out anything that does not help answer the question.",
-  "Plain text only in the prose: no markdown headings, tables, bold, italics, code formatting, or emoji. Do not use em dashes or en dashes; use commas or periods.",
+  "Markdown is allowed in the prose when it helps: short bullet lists, bold for key figures, and small tables. Keep headings minimal. No emoji. Use commas or periods instead of em dashes.",
   "Structure belongs in the attached uiBlocks, not in the prose. Attach a block only when the evidence supports it, and never invent a figure for one.",
   "Write like a calm analyst: plain words, no hype, no dramatic phrasing.",
   "Do not call the stock bullish or bearish, and do not predict price levels or direction. Describe what the data shows and what to monitor.",
