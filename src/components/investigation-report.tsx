@@ -91,7 +91,7 @@ export function InvestigationVerdict({ data }: { data: InvestigationData }) {
       <InvestigationSignalChart ticker={data.ticker} signals={data.signals} />
 
       {collected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-rule pt-4">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className={VERDICT_LABEL}>Diperiksa</h3>
           {collected.map((card) => (
             <span key={card.type} className="badge badge-ink">
@@ -167,7 +167,7 @@ export function InvestigationReport({
           )}
         </section>
       ) : (
-        <details className="dashboard-panel group space-y-4">
+        <details className="dashboard-panel report-collapsible group">
           <summary className={DISCLOSURE_SUMMARY}>
             <ChevronDown className={CHEVRON} aria-hidden />
             <span className={DISCLOSURE_LABEL}>Detail analisis</span>
@@ -216,41 +216,38 @@ export function InvestigationReport({
       )}
 
       {data.investigationPath.length > 0 && (
-        <section className="dashboard-panel space-y-4">
-          <div>
-            <h2 className="panel-title">Jejak Investigasi</h2>
+        <details className="dashboard-panel report-collapsible group">
+          <summary className={DISCLOSURE_SUMMARY}>
+            <ChevronDown className={CHEVRON} aria-hidden />
+            <span className={DISCLOSURE_LABEL}>Jejak investigasi</span>
+            <span className={DISCLOSURE_COUNT}>{data.investigationPath.length} langkah</span>
+          </summary>
+          <div className="space-y-4 border-t border-rule pt-4">
             <p className="panel-subtitle">
               Sumber yang dipilih agent, alasan pemilihan, dan temuan tiap langkah.
             </p>
-          </div>
-          <details className="group border-rule border-t pt-3">
-            <summary className={DISCLOSURE_SUMMARY}>
-              <ChevronDown className={CHEVRON} aria-hidden />
-              <span className={DISCLOSURE_LABEL}>Langkah Agent</span>
-              <span className={DISCLOSURE_COUNT}>{data.investigationPath.length} langkah</span>
-            </summary>
             <InvestigationPath steps={data.investigationPath} />
-          </details>
-        </section>
+          </div>
+        </details>
       )}
 
       {data.evidenceCards.some((card) => card.finding !== null) && (
-        <section className="dashboard-panel space-y-3">
-          <details className="group">
-            <summary className={DISCLOSURE_SUMMARY}>
-              <ChevronDown className={CHEVRON} aria-hidden />
-              <span className={DISCLOSURE_LABEL}>Bukti yang mendukung analisis</span>
-              <span className={DISCLOSURE_COUNT}>
-                {data.evidenceCards.filter((card) => card.finding !== null).length} temuan
-              </span>
-            </summary>
+        <details className="dashboard-panel report-collapsible group">
+          <summary className={DISCLOSURE_SUMMARY}>
+            <ChevronDown className={CHEVRON} aria-hidden />
+            <span className={DISCLOSURE_LABEL}>Bukti yang mendukung analisis</span>
+            <span className={DISCLOSURE_COUNT}>
+              {data.evidenceCards.filter((card) => card.finding !== null).length} temuan
+            </span>
+          </summary>
+          <div className="border-t border-rule pt-4">
             <EvidencePanel cards={data.evidenceCards} />
-          </details>
-        </section>
+          </div>
+        </details>
       )}
 
       {(data.timeline.length > 0 || data.status === "COMPLETED") && (
-        <details className="dashboard-panel group space-y-4">
+        <details className="dashboard-panel report-collapsible group">
           <summary className={DISCLOSURE_SUMMARY}>
             <ChevronDown className={CHEVRON} aria-hidden />
             <span className={DISCLOSURE_LABEL}>Riwayat ticker</span>

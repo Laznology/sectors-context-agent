@@ -355,6 +355,7 @@ function AppShell() {
                     type="button"
                     size="sm"
                     variant={item.primaryAction === "OPEN_REPORT" ? "outline" : "default"}
+                    className="whitespace-nowrap"
                     onClick={() =>
                       item.primaryAction === "OPEN_REPORT"
                         ? void navigate({
