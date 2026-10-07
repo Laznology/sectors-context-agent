@@ -12,9 +12,9 @@ function RootLayout() {
         <Link
           to="/"
           aria-label="Accel"
-          className="inline-flex items-center gap-2 font-serif text-xl font-semibold tracking-tight"
+          className="inline-flex items-center gap-2.5 font-serif text-4xl font-bold tracking-tight"
         >
-          <img src="/android-chrome-192x192.png" alt="" className="h-9 w-auto" />
+          <img src="/android-chrome-192x192.png" alt="" className="h-12 w-auto" />
           <span>Accel</span>
         </Link>
       </header>

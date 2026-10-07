@@ -386,7 +386,7 @@
 
   /* Auth Layout & Form Panel */
   .auth-grid {
-    @apply grid w-full mx-auto max-w-6xl min-h-[calc(100dvh-4.25rem)] content-center gap-12 lg:grid-cols-[minmax(0,20rem)_minmax(0,24rem)] lg:justify-center lg:gap-12 lg:items-center py-12 px-6 sm:px-8;
+    @apply grid w-full mx-auto max-w-6xl min-h-[calc(100dvh-5rem)] content-center gap-12 lg:grid-cols-[minmax(0,20rem)_minmax(0,24rem)] lg:justify-center lg:gap-12 lg:items-center py-12 px-6 sm:px-8;
   }
 
   .auth-card {
