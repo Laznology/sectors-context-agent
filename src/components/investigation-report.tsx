@@ -4,7 +4,11 @@ import { InvestigationSignalChart } from "@/components/investigation-signal-char
 import { InvestigationTimeline } from "@/components/investigation-timeline";
 import { Button } from "@/components/ui/button";
 import type { InvestigationData, LikelyDriver } from "@/lib/investigation-view-model";
-import { DRIVER_TEXT, INVESTIGATION_DISCLAIMER } from "@/shared/schemas/investigation.ts";
+import {
+  CONFIDENCE_TEXT,
+  DRIVER_TEXT,
+  INVESTIGATION_DISCLAIMER,
+} from "@/shared/schemas/investigation.ts";
 import { ChevronDown, RefreshCw } from "lucide-react";
 const NUMBER = new Intl.NumberFormat("id-ID");
 const PERCENT = new Intl.NumberFormat("id-ID", {
@@ -74,6 +78,12 @@ export function InvestigationVerdict({ data }: { data: InvestigationData }) {
         >
           {DRIVER_TEXT[data.likelyDriver]}
         </span>
+
+        {showConfidence && (
+          <span className="inline-flex rounded-lg border border-border/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Keyakinan {CONFIDENCE_TEXT[data.confidence]}
+          </span>
+        )}
 
         {collected.length > 0 && (
           <span className="text-muted-foreground text-xs">
