@@ -1,13 +1,16 @@
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import type { WatchlistItem } from "@/lib/watchlist-view-model";
 import { ArrowUpRight, Plus, Search } from "lucide-react";
 import {
   useEffect,
   useId,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type Ref,
 } from "react";
 
 type CommandPaletteProps = {
@@ -15,6 +18,8 @@ type CommandPaletteProps = {
   readonly onSelectTicker: (item: WatchlistItem) => void;
   readonly onAddTicker: (query: string) => void;
 };
+
+export type CommandPaletteHandle = { open: () => void };
 
 type PaletteEntry =
   | { readonly kind: "ticker"; readonly item: WatchlistItem }
@@ -26,7 +31,12 @@ const formatPrice = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
 
-export function CommandPalette({ watchlist, onSelectTicker, onAddTicker }: CommandPaletteProps) {
+export function CommandPalette({
+  watchlist,
+  onSelectTicker,
+  onAddTicker,
+  ref,
+}: CommandPaletteProps & { ref?: Ref<CommandPaletteHandle> }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -34,6 +44,8 @@ export function CommandPalette({ watchlist, onSelectTicker, onAddTicker }: Comma
   const inputRef = useRef<HTMLInputElement | null>(null);
   const titleId = useId();
   const listId = useId();
+
+  useImperativeHandle(ref, () => ({ open: () => setIsOpen(true) }), []);
 
   const matches = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("id-ID");
@@ -111,9 +123,7 @@ export function CommandPalette({ watchlist, onSelectTicker, onAddTicker }: Comma
           <Search aria-hidden />
           Cari saham
         </span>
-        <kbd className="hidden rounded border border-border/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
-          Ctrl K
-        </kbd>
+        <Kbd className="hidden sm:inline-flex">Ctrl K</Kbd>
       </Button>
 
       <dialog
@@ -157,9 +167,7 @@ export function CommandPalette({ watchlist, onSelectTicker, onAddTicker }: Comma
               placeholder="Cari kode atau nama perusahaan…"
               className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground focus-visible:ring-0"
             />
-            <kbd className="shrink-0 rounded border border-border/70 px-1.5 py-1 font-mono text-[10px] text-muted-foreground">
-              ESC
-            </kbd>
+            <Kbd className="shrink-0 px-1.5 py-1">ESC</Kbd>
           </div>
         </div>
 
