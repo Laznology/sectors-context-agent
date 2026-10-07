@@ -16,12 +16,12 @@ export function SignalReadout({
   description: string;
 }) {
   return (
-    <section className="flex flex-col gap-8">
+    <section className="flex flex-col items-center gap-8 text-center lg:items-start lg:text-left">
       <p className="text-signal-text tabular text-[11px] tracking-[0.22em] uppercase">{eyebrow}</p>
 
-      <div className="flex flex-col gap-5">
+      <div className="flex flex-col items-center gap-5 lg:items-start">
         <h1 className="font-serif text-4xl leading-[1.1] tracking-tight sm:text-5xl">{title}</h1>
-        <p className="text-muted-foreground max-w-md text-sm leading-relaxed">{description}</p>
+        <p className="text-muted-foreground max-w-xs text-sm leading-relaxed">{description}</p>
       </div>
 
       <ReadoutPanel />
@@ -38,7 +38,7 @@ const READINGS: readonly { label: string; value: string; level: number }[] = [
 
 function ReadoutPanel() {
   return (
-    <div className="border-rule bg-panel/60 w-full max-w-md rounded-md border p-5">
+    <div className="border-rule bg-panel/60 mx-auto w-full max-w-xs rounded-md border p-5 lg:mx-0">
       <div className="border-rule mb-4 flex items-center justify-between border-b pb-3">
         <span className="text-muted-foreground tabular text-[11px] tracking-[0.2em] uppercase">
           sample readout · ANTM
